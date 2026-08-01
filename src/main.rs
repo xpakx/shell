@@ -1,5 +1,9 @@
 use std::{io::{self, Write}, process::exit};
 use std::path::PathBuf;
+use std::env;
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::process::Command;
 
 fn main() {
     loop {
@@ -85,7 +89,7 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
 fn eval(command: &Cmd, args: &Vec<String>) {
     match command {
         Cmd::Builtin(cmd) => run_builtin(cmd, args),
-        Cmd::External(_) => (),
+        Cmd::External(cmd) => run_external(cmd, args),
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
@@ -98,6 +102,16 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>) {
                 println!("{}", msg);
             }
     }
+}
+
+
+fn run_external(cmd: &Executable, args: &Vec<String>) {
+    let mut cmd = Command::new(cmd.name.to_string());
+    if !args.is_empty() {
+        cmd.args(args);
+    }
+    let _ = cmd.status();
+
 }
 
 enum Cmd {
@@ -121,7 +135,32 @@ impl Cmd {
         match command {
             "exit" => Cmd::Builtin(Builtin::Exit),
             "echo" => Cmd::Builtin(Builtin::Echo),
-            _ => Cmd::Unknown(command.to_string()),
+            _ => match cmd_from_path(command) {
+                Option::None => Cmd::Unknown(command.to_string()),
+                Some(data) => Cmd::External(data),
+            }
         }
     }
 }
+
+fn cmd_from_path(command: &str) -> Option<Executable> {
+    let path = env::var("PATH").unwrap();
+    let mut paths = env::split_paths(&path);
+    while let Some(path) = paths.next() {
+        let full_path = path.join(&command);
+        if full_path.is_file() {
+            if let Ok(metadata) = fs::metadata(&full_path) {
+                if metadata.permissions().mode() & 0o111 != 0 {
+                    return Some(
+                        Executable {
+                            name: command.to_string(),
+                            path: full_path,
+                        }
+                    )
+                }
+            }
+        }
+    }
+    None
+}
+
