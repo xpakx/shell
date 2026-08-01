@@ -1,5 +1,5 @@
 use std::{io::{self, Write}, process::exit};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::env;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -113,6 +113,14 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>) {
                 Ok(cwd) => println!("{}", cwd.to_str().unwrap()),
                 _ => println!("should not happen")
             },
+            Builtin::Cd => {
+                if !args.is_empty() {
+                    let path = Path::new(&args[0]);
+                    if !path.is_dir() || !env::set_current_dir(path).is_ok() {
+                        println!("cd: {}: No such file of directory", path.display());
+                    }
+                }
+            },
     }
 }
 
@@ -137,6 +145,7 @@ enum Builtin {
     Echo,
     Type,
     Pwd,
+    Cd,
 }
 
 struct Executable {
@@ -151,6 +160,7 @@ impl Cmd {
             "echo" => Cmd::Builtin(Builtin::Echo),
             "type" => Cmd::Builtin(Builtin::Type),
             "pwd" => Cmd::Builtin(Builtin::Pwd),
+            "cd" => Cmd::Builtin(Builtin::Cd),
             _ => match cmd_from_path(command) {
                 Option::None => Cmd::Unknown(command.to_string()),
                 Some(data) => Cmd::External(data),
