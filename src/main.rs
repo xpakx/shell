@@ -1,4 +1,5 @@
 use std::{io::{self, Write}, process::exit};
+use std::path::PathBuf;
 
 fn main() {
     loop {
@@ -31,7 +32,7 @@ enum ParseMode {
 }
 
 
-fn parse_command(command: &str) -> (String, Vec<String>) {
+fn parse_command(command: &str) -> (Cmd, Vec<String>) {
     let mut args: Vec<String> = Vec::new();
     let mut last = ' ';
     let mut arg = String::with_capacity(command.len());
@@ -73,20 +74,54 @@ fn parse_command(command: &str) -> (String, Vec<String>) {
         args.push(arg);
     }
     if args.is_empty() {
-       return (String::new(), args)
+       return (Cmd::Unknown(String::new()), args)
     }
 
     let command = args.remove(0);
+    let command = Cmd::resolve(&command);
     (command, args)
 }
 
-fn eval(command: &str, args: &Vec<String>) {
+fn eval(command: &Cmd, args: &Vec<String>) {
     match command {
-        "exit" => exit(0),
-        "echo" => {
-            let msg = args.join(" ");
-            println!("{}", msg);
+        Cmd::Builtin(cmd) => run_builtin(cmd, args),
+        Cmd::External(_) => (),
+        Cmd::Unknown(name) => println!("{}: command not found", name),
+    }
+}
+
+fn run_builtin(cmd: &Builtin, args: &Vec<String>) {
+    match cmd {
+            Builtin::Exit => exit(0),
+            Builtin::Echo => {
+                let msg = args.join(" ");
+                println!("{}", msg);
+            }
+    }
+}
+
+enum Cmd {
+    Builtin(Builtin),
+    External(Executable),
+    Unknown(String),
+}
+
+enum Builtin {
+    Exit,
+    Echo,
+}
+
+struct Executable {
+    name: String,
+    path: PathBuf,
+}
+
+impl Cmd {
+    fn resolve(command: &str) -> Self {
+        match command {
+            "exit" => Cmd::Builtin(Builtin::Exit),
+            "echo" => Cmd::Builtin(Builtin::Echo),
+            _ => Cmd::Unknown(command.to_string()),
         }
-        _ => println!("{}: command not found", command),
     }
 }
