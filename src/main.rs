@@ -50,6 +50,9 @@ fn parse_command(command: &str) -> (String, Vec<String>) {
                 },
                 '\'' => mode = ParseMode::SingleQuote,
                 '"' => mode = ParseMode::DoubleQuote,
+                '\\' => if let Some(next) = chars.next() {
+                    arg.push(next);
+                },
                 _ => arg.push(c),
             },
             ParseMode::SingleQuote => match c {
@@ -58,6 +61,9 @@ fn parse_command(command: &str) -> (String, Vec<String>) {
             }
             ParseMode::DoubleQuote => match c {
                 '"' => mode = ParseMode::Normal,
+                '\\' => if let Some(next) = chars.next() {
+                    arg.push(next);
+                },
                 _ => arg.push(c),
             }
         }
