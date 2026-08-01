@@ -6,7 +6,7 @@ fn main() {
         let command = get_command();
         let (command, args) = parse_command(&command);
         eval(&command, &args);
-        println!("{}, {:?}", &command, &args);
+        // println!("{}, {:?}", &command, &args);
     }
 }
 
@@ -53,9 +53,13 @@ fn parse_command(command: &str) -> (String, Vec<String>) {
     (command, args)
 }
 
-fn eval(command: &String, _args: &Vec<String>) {
-    match command.as_str() {
+fn eval(command: &str, args: &Vec<String>) {
+    match command {
         "exit" => exit(0),
-        _ => (),
+        "echo" => {
+            let msg = args.join(" ");
+            println!("{}", msg);
+        }
+        _ => println!("{}: command not found", command),
     }
 }
