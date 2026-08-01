@@ -11,7 +11,7 @@ fn main() {
         let command = get_command();
         let (command, args) = parse_command(&command);
         eval(&command, &args);
-        // println!("{}, {:?}", &command, &args);
+        // println!("{:?}", &args);
     }
 }
 
@@ -44,7 +44,7 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
     let mut args: Vec<String> = Vec::new();
     let mut last = ' ';
     let mut arg = String::with_capacity(command.len());
-    let mut chars = command.trim().chars();
+    let mut chars = command.trim().chars().peekable();
     let mut mode = ParseMode::Normal;
 
     while let Some(c) = chars.next() {
@@ -63,6 +63,22 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
                     arg.push(next);
                 },
                 '~' => arg.push_str(&home),
+                '>' => {
+                    let have_io_number =  arg == "1" || arg == "2";
+                    if !have_io_number && !arg.is_empty() {
+                        args.push(arg);
+                        arg = String::with_capacity(command.len());
+                    }
+                    arg.push(c);
+                    if let Some(&next) = chars.peek() {
+                        if next == '>' {
+                            chars.next();
+                            arg.push(c);
+                        }
+                    }
+                    args.push(arg);
+                    arg = String::with_capacity(command.len());
+                },
                 _ => arg.push(c),
             },
             ParseMode::SingleQuote => match c {
