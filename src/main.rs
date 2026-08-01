@@ -100,7 +100,15 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>) {
             Builtin::Echo => {
                 let msg = args.join(" ");
                 println!("{}", msg);
-            }
+            },
+            Builtin::Type => match args.is_empty() {
+                true => println!(""),
+                false => match Cmd::resolve(&args[0]) {
+                    Cmd::Builtin(_) => println!("{} is a shell builtin", &args[0]),
+                    Cmd::External(cmd) => println!("{} is {}", &cmd.name, &cmd.path.display()),
+                    Cmd::Unknown(cmd) => println!("{} not found", &cmd),
+                },
+            },
     }
 }
 
@@ -123,6 +131,7 @@ enum Cmd {
 enum Builtin {
     Exit,
     Echo,
+    Type,
 }
 
 struct Executable {
@@ -135,6 +144,7 @@ impl Cmd {
         match command {
             "exit" => Cmd::Builtin(Builtin::Exit),
             "echo" => Cmd::Builtin(Builtin::Echo),
+            "type" => Cmd::Builtin(Builtin::Type),
             _ => match cmd_from_path(command) {
                 Option::None => Cmd::Unknown(command.to_string()),
                 Some(data) => Cmd::External(data),
