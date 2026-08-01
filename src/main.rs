@@ -37,6 +37,10 @@ enum ParseMode {
 
 
 fn parse_command(command: &str) -> (Cmd, Vec<String>) {
+    let home = std::env::home_dir()
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
     let mut args: Vec<String> = Vec::new();
     let mut last = ' ';
     let mut arg = String::with_capacity(command.len());
@@ -58,6 +62,7 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
                 '\\' => if let Some(next) = chars.next() {
                     arg.push(next);
                 },
+                '~' => arg.push_str(&home),
                 _ => arg.push(c),
             },
             ParseMode::SingleQuote => match c {
