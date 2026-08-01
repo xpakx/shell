@@ -1,10 +1,11 @@
-use std::io::{self, Write};
+use std::{io::{self, Write}, process::exit};
 
 fn main() {
     loop {
         prompt();
         let command = get_command();
         let (command, args) = parse_command(&command);
+        eval(&command, &args);
         println!("{}, {:?}", &command, &args);
     }
 }
@@ -16,8 +17,10 @@ fn prompt() {
 
 fn get_command() -> String {
     let mut command = String::new();
-    io::stdin().read_line(&mut command).unwrap();
-    command
+    match io::stdin().read_line(&mut command) {
+        Ok(_) => command,
+        Err(_) => String::new(),
+    }
 }
 
 fn parse_command(command: &str) -> (String, Vec<String>) {
@@ -48,4 +51,11 @@ fn parse_command(command: &str) -> (String, Vec<String>) {
 
     let command = args.remove(0);
     (command, args)
+}
+
+fn eval(command: &String, _args: &Vec<String>) {
+    match command.as_str() {
+        "exit" => exit(0),
+        _ => (),
+    }
 }
