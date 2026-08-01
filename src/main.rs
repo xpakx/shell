@@ -109,6 +109,10 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>) {
                     Cmd::Unknown(cmd) => println!("{} not found", &cmd),
                 },
             },
+            Builtin::Pwd => match env::current_dir() {
+                Ok(cwd) => println!("{}", cwd.to_str().unwrap()),
+                _ => println!("should not happen")
+            },
     }
 }
 
@@ -132,6 +136,7 @@ enum Builtin {
     Exit,
     Echo,
     Type,
+    Pwd,
 }
 
 struct Executable {
@@ -145,6 +150,7 @@ impl Cmd {
             "exit" => Cmd::Builtin(Builtin::Exit),
             "echo" => Cmd::Builtin(Builtin::Echo),
             "type" => Cmd::Builtin(Builtin::Type),
+            "pwd" => Cmd::Builtin(Builtin::Pwd),
             _ => match cmd_from_path(command) {
                 Option::None => Cmd::Unknown(command.to_string()),
                 Some(data) => Cmd::External(data),
