@@ -23,22 +23,43 @@ fn get_command() -> String {
     }
 }
 
+
+enum ParseMode {
+    Normal,
+    SingleQuote,
+    DoubleQuote,
+}
+
+
 fn parse_command(command: &str) -> (String, Vec<String>) {
     let mut args: Vec<String> = Vec::new();
     let mut last = ' ';
     let mut arg = String::with_capacity(command.len());
     let mut chars = command.trim().chars();
+    let mut mode = ParseMode::Normal;
 
     while let Some(c) = chars.next() {
-        match c {
-            ' ' => match last {
-                ' ' => (),
-                _ => {
-                    args.push(arg);
-                    arg = String::with_capacity(command.len());
-                }
+        match mode {
+            ParseMode::Normal => match c {
+                ' ' => match last {
+                    ' ' => (),
+                    _ => {
+                        args.push(arg);
+                        arg = String::with_capacity(command.len());
+                    }
+                },
+                '\'' => mode = ParseMode::SingleQuote,
+                '"' => mode = ParseMode::DoubleQuote,
+                _ => arg.push(c),
             },
-            _ => arg.push(c),
+            ParseMode::SingleQuote => match c {
+                '\'' => mode = ParseMode::Normal,
+                _ => arg.push(c),
+            }
+            ParseMode::DoubleQuote => match c {
+                '"' => mode = ParseMode::Normal,
+                _ => arg.push(c),
+            }
         }
         last = c;
     }
