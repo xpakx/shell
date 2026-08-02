@@ -1,7 +1,8 @@
-use std::{io::{self, Write}, process::exit};
+use core::writeln;
+use std::{io::{self, Write, BufWriter}, process::exit};
 use std::path::{PathBuf, Path};
 use std::env;
-use std::fs;
+use std::fs::{self, File};
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
@@ -9,8 +10,9 @@ fn main() {
     loop {
         prompt();
         let command = get_command();
-        let (command, args) = parse_command(&command);
-        eval(&command, &args);
+        let (command, mut args) = parse_command(&command);
+        let mut buffers = get_buffers(&mut args);
+        eval(&command, &args, &mut buffers);
         // println!("{:?}", &args);
     }
 }
@@ -109,38 +111,38 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
     (command, args)
 }
 
-fn eval(command: &Cmd, args: &Vec<String>) {
+fn eval(command: &Cmd, args: &Vec<String>, buffers: &mut Buffers) {
     match command {
-        Cmd::Builtin(cmd) => run_builtin(cmd, args),
+        Cmd::Builtin(cmd) => run_builtin(cmd, args, buffers),
         Cmd::External(cmd) => run_external(cmd, args),
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
 
-fn run_builtin(cmd: &Builtin, args: &Vec<String>) {
+fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers) {
     match cmd {
             Builtin::Exit => exit(0),
             Builtin::Echo => {
                 let msg = args.join(" ");
-                println!("{}", msg);
+                writeln!(buffers.out, "{}", msg).unwrap();
             },
             Builtin::Type => match args.is_empty() {
-                true => println!(""),
+                true => writeln!(buffers.out, "").unwrap(),
                 false => match Cmd::resolve(&args[0]) {
-                    Cmd::Builtin(_) => println!("{} is a shell builtin", &args[0]),
-                    Cmd::External(cmd) => println!("{} is {}", &cmd.name, &cmd.path.display()),
-                    Cmd::Unknown(cmd) => println!("{} not found", &cmd),
+                    Cmd::Builtin(_) => writeln!(buffers.out, "{} is a shell builtin", &args[0]).unwrap(),
+                    Cmd::External(cmd) => writeln!(buffers.out, "{} is {}", &cmd.name, &cmd.path.display()).unwrap(),
+                    Cmd::Unknown(cmd) => writeln!(buffers.out, "{} not found", &cmd).unwrap(),
                 },
             },
             Builtin::Pwd => match env::current_dir() {
-                Ok(cwd) => println!("{}", cwd.to_str().unwrap()),
-                _ => println!("should not happen")
+                Ok(cwd) => writeln!(buffers.out, "{}", cwd.to_str().unwrap()).unwrap(),
+                _ => writeln!(buffers.err, "should not happen").unwrap(),
             },
             Builtin::Cd => {
                 if !args.is_empty() {
                     let path = Path::new(&args[0]);
                     if !path.is_dir() || !env::set_current_dir(path).is_ok() {
-                        println!("cd: {}: No such file of directory", path.display());
+                        writeln!(buffers.err, "cd: {}: No such file of directory", path.display()).unwrap();
                     }
                 }
             },
@@ -213,3 +215,50 @@ fn cmd_from_path(command: &str) -> Option<Executable> {
     None
 }
 
+
+struct Buffers {
+    out: BufWriter<Box<dyn Write>>,
+    err: BufWriter<Box<dyn Write>>,
+}
+
+fn redirect_out(input: &mut Vec<String>) -> Option<String> {
+    let index = input.iter().position(|x| x == ">" || x == "1>")?;
+    if index + 1 < input.len() {
+        input.remove(index);
+        Some(input.remove(index))
+    } else {
+        None
+    }
+}
+
+fn redirect_err(input: &mut Vec<String>) -> Option<String> {
+    let index = input.iter().position(|x| x == "2>")?;
+    if index + 1 < input.len() {
+        input.remove(index);
+        Some(input.remove(index))
+    } else {
+        None
+    }
+}
+
+fn get_buffers(args: &mut Vec<String>) -> Buffers {
+    let out: BufWriter<Box<dyn Write>>;
+    if let Some(out_path) = redirect_out(args) {
+        let file = File::create(&out_path)
+            .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
+        out = BufWriter::new(Box::new(file));
+    } else {
+        out = BufWriter::new(Box::new(io::stdout()));
+    }
+
+    let err: BufWriter<Box<dyn Write>>;
+    if let Some(out_path) = redirect_err(args) {
+        let file = File::create(&out_path)
+            .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
+        err = BufWriter::new(Box::new(file));
+    } else {
+        err = BufWriter::new(Box::new(io::stdout()));
+    }
+
+    Buffers {out, err}
+}
