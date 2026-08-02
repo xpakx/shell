@@ -53,8 +53,10 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
                 ' ' => match last {
                     ' ' => (),
                     _ => {
-                        args.push(arg);
-                        arg = String::with_capacity(command.len());
+                        if !arg.is_empty() {
+                            args.push(arg);
+                            arg = String::new();
+                        }
                     }
                 },
                 '\'' => mode = ParseMode::SingleQuote,
