@@ -33,6 +33,7 @@ fn prepare_commands() -> Vec<String> {
     let execs = executables(); 
     commands.extend(execs);
     commands.sort();
+    commands.dedup();
     commands
 }
 
