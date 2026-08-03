@@ -5,10 +5,16 @@ use std::env;
 use std::fs::{self, OpenOptions};
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
+use rustyline::{self, history::DefaultHistory};
 
+mod readline;
+use readline::CommandHelper;
 
 fn main() {
-    let mut rl = rustyline::DefaultEditor::new().unwrap();
+    let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::new().unwrap();
+    rl.set_helper(Some(CommandHelper {
+        commands: vec!["echo", "exit", "type", "pwd", "cd"],
+    }));
 
     loop {
         let command = get_command(&mut rl);
@@ -19,7 +25,7 @@ fn main() {
     }
 }
 
-fn get_command(rl: &mut rustyline::DefaultEditor) -> String {
+fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> String {
     let readline = rl.readline("$ ");
     match readline {
         Ok(line) => line,
