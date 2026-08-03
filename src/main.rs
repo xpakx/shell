@@ -11,7 +11,10 @@ mod readline;
 use readline::CommandHelper;
 
 fn main() {
-    let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::new().unwrap();
+    let rl_config = rustyline::Config::builder()
+        .completion_type(rustyline::CompletionType::List)
+        .build();
+    let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::with_config(rl_config).unwrap();
     rl.set_helper(Some(CommandHelper { 
         commands: prepare_commands() 
     }));
