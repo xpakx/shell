@@ -5,7 +5,7 @@ use rustyline::validate::Validator;
 use rustyline::{Context, Helper, Result};
 
 pub struct CommandHelper {
-    pub commands: Vec<&'static str>,
+    pub commands: Vec<String>,
 }
 
 impl Helper for CommandHelper {}
@@ -23,7 +23,7 @@ impl Completer for CommandHelper {
         let prefix = &line[..pos];
 
         // TODO: less naive approach; a Trie?
-        for &cmd in &self.commands {
+        for cmd in &self.commands {
             if cmd.starts_with(prefix) {
                 matches.push(format!("{} ", cmd));
             }
