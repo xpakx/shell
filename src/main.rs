@@ -142,7 +142,7 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers) {
                 if !args.is_empty() {
                     let path = Path::new(&args[0]);
                     if !path.is_dir() || !env::set_current_dir(path).is_ok() {
-                        writeln!(buffers.err, "cd: {}: No such file of directory", path.display()).unwrap();
+                        writeln!(buffers.err, "cd: {}: No such file or directory", path.display()).unwrap();
                     }
                 }
             },
@@ -265,7 +265,7 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
             .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
         err = BufWriter::new(Box::new(file));
     } else {
-        err = BufWriter::new(Box::new(io::stdout()));
+        err = BufWriter::new(Box::new(io::stderr()));
     }
 
     Buffers {out, err}
