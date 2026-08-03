@@ -6,10 +6,12 @@ use std::fs::{self, OpenOptions};
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
+
 fn main() {
+    let mut rl = rustyline::DefaultEditor::new().unwrap();
+
     loop {
-        prompt();
-        let command = get_command();
+        let command = get_command(&mut rl);
         let (command, mut args) = parse_command(&command);
         let mut buffers = get_buffers(&mut args);
         eval(&command, &args, &mut buffers);
@@ -17,15 +19,10 @@ fn main() {
     }
 }
 
-fn prompt() {
-    print!("$ ");
-    io::stdout().flush().unwrap();
-}
-
-fn get_command() -> String {
-    let mut command = String::new();
-    match io::stdin().read_line(&mut command) {
-        Ok(_) => command,
+fn get_command(rl: &mut rustyline::DefaultEditor) -> String {
+    let readline = rl.readline("$ ");
+    match readline {
+        Ok(line) => line,
         Err(_) => String::new(),
     }
 }
