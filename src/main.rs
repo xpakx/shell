@@ -2,7 +2,7 @@ use core::writeln;
 use std::{io::{self, Write, BufWriter}, process::exit};
 use std::path::{PathBuf, Path};
 use std::env;
-use std::fs::{self, File};
+use std::fs::{self, OpenOptions};
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
@@ -229,21 +229,49 @@ struct Buffers {
     err: BufWriter<Box<dyn Write>>,
 }
 
-fn redirect_out(input: &mut Vec<String>) -> Option<String> {
-    let index = input.iter().position(|x| x == ">" || x == "1>")?;
+
+enum RedirectMode {
+    Append,
+    Overwrite,
+}
+
+
+
+fn redirect_out(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
+    let index = input.iter().position(|x| {
+        matches!(x.as_str(), ">" | ">>" | "1>" | "1>>")
+    })?;
+
     if index + 1 < input.len() {
+        let op = input[index].clone();
         input.remove(index);
-        Some(input.remove(index))
+        let path = input.remove(index);
+        let mode = if op.contains(">>") {
+            RedirectMode::Append
+        } else {
+            RedirectMode::Overwrite
+        };
+        Some((mode, path))
     } else {
         None
     }
 }
 
-fn redirect_err(input: &mut Vec<String>) -> Option<String> {
-    let index = input.iter().position(|x| x == "2>")?;
+fn redirect_err(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
+    let index = input.iter().position(|x| {
+        matches!(x.as_str(), "2>" | "2>>")
+    })?;
+
     if index + 1 < input.len() {
+        let op = input[index].clone();
         input.remove(index);
-        Some(input.remove(index))
+        let path = input.remove(index);
+        let mode = if op.contains(">>") {
+            RedirectMode::Append
+        } else {
+            RedirectMode::Overwrite
+        };
+        Some((mode, path))
     } else {
         None
     }
@@ -251,8 +279,14 @@ fn redirect_err(input: &mut Vec<String>) -> Option<String> {
 
 fn get_buffers(args: &mut Vec<String>) -> Buffers {
     let out: BufWriter<Box<dyn Write>>;
-    if let Some(out_path) = redirect_out(args) {
-        let file = File::create(&out_path)
+    if let Some((mode, out_path)) = redirect_out(args) {
+        let mut opts = OpenOptions::new();
+        opts.create(true).write(true);
+        match mode {
+            RedirectMode::Overwrite => opts.truncate(true),
+            RedirectMode::Append => opts.append(true),
+        };
+        let file = opts.open(&out_path)
             .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
         out = BufWriter::new(Box::new(file));
     } else {
@@ -260,8 +294,14 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
     }
 
     let err: BufWriter<Box<dyn Write>>;
-    if let Some(out_path) = redirect_err(args) {
-        let file = File::create(&out_path)
+    if let Some((mode, out_path)) = redirect_err(args) {
+        let mut opts = OpenOptions::new();
+        opts.create(true).write(true);
+        match mode {
+            RedirectMode::Overwrite => opts.truncate(true),
+            RedirectMode::Append => opts.append(true),
+        };
+        let file = opts.open(&out_path)
             .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
         err = BufWriter::new(Box::new(file));
     } else {
