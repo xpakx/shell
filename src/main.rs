@@ -114,7 +114,7 @@ fn parse_command(command: &str) -> (Cmd, Vec<String>) {
 fn eval(command: &Cmd, args: &Vec<String>, buffers: &mut Buffers) {
     match command {
         Cmd::Builtin(cmd) => run_builtin(cmd, args, buffers),
-        Cmd::External(cmd) => run_external(cmd, args),
+        Cmd::External(cmd) => run_external(cmd, args, buffers),
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
@@ -150,13 +150,21 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers) {
 }
 
 
-fn run_external(cmd: &Executable, args: &Vec<String>) {
+fn run_external(cmd: &Executable, args: &Vec<String>, buffers: &mut Buffers) {
     let mut cmd = Command::new(cmd.name.to_string());
     if !args.is_empty() {
         cmd.args(args);
     }
-    let _ = cmd.status();
-
+    match cmd.output() {
+        Ok(output) => {
+            // TODO: interleaving
+            let _ = buffers.out.write_all(&output.stdout);
+            let _ = buffers.out.flush();
+            let _ = buffers.err.write_all(&output.stderr);
+            let _ = buffers.err.flush();
+        },
+        Err(_) => (),
+    }
 }
 
 enum Cmd {
