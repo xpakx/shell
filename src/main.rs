@@ -283,9 +283,14 @@ enum RedirectMode {
     Overwrite,
 }
 
+struct Redirect {
+    mode: RedirectMode,
+    path: String,
+}
 
 
-fn redirect_out(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
+
+fn redirect_out(input: &mut Vec<String>) -> Option<Redirect> {
     let index = input.iter().position(|x| {
         matches!(x.as_str(), ">" | ">>" | "1>" | "1>>")
     })?;
@@ -299,7 +304,7 @@ fn redirect_out(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
         } else {
             RedirectMode::Overwrite
         };
-        Some((mode, path))
+        Some(Redirect{mode, path})
     } else {
         None
     }
@@ -327,15 +332,15 @@ fn redirect_err(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
 
 fn get_buffers(args: &mut Vec<String>) -> Buffers {
     let out: BufWriter<Box<dyn Write>>;
-    if let Some((mode, out_path)) = redirect_out(args) {
+    if let Some(redirect) = redirect_out(args) {
         let mut opts = OpenOptions::new();
         opts.create(true).write(true);
-        match mode {
+        match redirect.mode {
             RedirectMode::Overwrite => opts.truncate(true),
             RedirectMode::Append => opts.append(true),
         };
-        let file = opts.open(&out_path)
-            .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
+        let file = opts.open(&redirect.path)
+            .unwrap_or_else(|err| panic!("cannot open {}: {err}", &redirect.path));
         out = BufWriter::new(Box::new(file));
     } else {
         out = BufWriter::new(Box::new(io::stdout()));
