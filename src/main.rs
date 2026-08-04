@@ -184,3 +184,15 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
 
     Buffers {out, err}
 }
+
+
+fn find_flag<'a>(input: &'a [String], flag: &str) -> Option<&'a String> {
+    input.iter()
+        .position(|x| x.as_str() == flag)
+        .and_then(|index| input.get(index + 1))
+}
+
+
+fn find_bool_flag<'a>(input: &'a [String], flag: &str) -> bool {
+    input.iter() .position(|x| x.as_str() == flag).is_some()
+}
