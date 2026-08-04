@@ -91,8 +91,15 @@ impl Completer for CommandHelper {
         pos: usize,
         _ctx: &Context<'_>,
     ) -> Result<(usize, Vec<String>)> {
+        // TODO: use proper parsing instead of spaces
         let mut matches = vec![];
-        let prefix = &line[..pos];
+        let prefix = &line[..pos];  // TODO: to next space?
+
+        let start = match prefix.rfind(' ') {
+            Option::Some(i) => if i >= pos {i} else {i+1},
+            Option::None => 0,
+        };
+        let prefix = &line[start..pos];
 
         self.update_commands();
         let commands = self.commands.borrow();
@@ -104,7 +111,7 @@ impl Completer for CommandHelper {
             }
         }
 
-        Ok((0, matches))
+        Ok((start, matches))
     }
 }
 
