@@ -92,6 +92,7 @@ impl CommandHelper {
                 },
                 Err(_) => (),
             }
+            matches.sort();
             matches
     }
 }
