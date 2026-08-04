@@ -1,6 +1,7 @@
 use core::cell::RefCell;
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
 
 use rustyline::completion::Completer;
@@ -52,14 +53,26 @@ impl CommandHelper {
             matches
     }
 
-    pub fn complete_file(&self, prefix: &str) -> Vec<String> {
+    pub fn complete_file(&self, path: &str, prefix: &str) -> Vec<String> {
             let mut matches = vec![];
 
             let Ok(cwd) = env::current_dir() else {
                 return matches
             };
 
-            match fs::read_dir(cwd) {
+            let path = if path.is_empty() {
+                cwd
+            } else {
+                let raw_path = Path::new(path);
+                if raw_path.is_absolute() {
+                    raw_path.to_path_buf()
+                } else {
+                    cwd.join(raw_path)
+                }
+            };
+
+
+            match fs::read_dir(path) {
                 Ok(entries) => {
                     for entry in entries {
                         match entry {
@@ -135,15 +148,25 @@ impl Completer for CommandHelper {
         let mut matches = vec![];
         let prefix = &line[..pos];  // TODO: to next space?
 
-        let start = match prefix.rfind(' ') {
+        let mut start = match prefix.rfind(' ') {
             Option::Some(i) => if i >= pos {i} else {i+1},
             Option::None => 0,
         };
-        let prefix = &line[start..pos];
+        let prefix = &prefix[start..pos];
 
         // TODO: spaces at the beginning
         matches = if start > 0 {
-            self.complete_file(&prefix)
+            let start_curr = match prefix.rfind('/') {
+                Option::Some(i) => if i >= prefix.len() {Some(i)} else {Some(i+1)},
+                Option::None => None,
+            };
+            let (path, prefix, new_start) = match start_curr {
+                Option::Some(i) => (&prefix[..i], &prefix[i..], start+i),
+                Option::None => ("", prefix, start),
+
+            };
+            start = new_start;
+            self.complete_file(&path, &prefix)
         } else {
             self.complete_command(&prefix)
         };
