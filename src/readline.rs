@@ -37,6 +37,46 @@ impl CommandHelper {
         let mut old_cmds = self.commands.borrow_mut();
         *old_cmds = commands;
     }
+
+    pub fn complete_command(&self, prefix: &str) -> Vec<String> {
+            self.update_commands();
+            let mut matches = vec![];
+            let commands = self.commands.borrow();
+
+            // TODO: less naive approach; a Trie?
+            for cmd in &*commands {
+                if cmd.starts_with(prefix) {
+                    matches.push(format!("{} ", cmd));
+                }
+            }
+            matches
+    }
+
+    pub fn complete_file(&self, prefix: &str) -> Vec<String> {
+            let mut matches = vec![];
+
+            let Ok(cwd) = env::current_dir() else {
+                return matches
+            };
+
+            match fs::read_dir(cwd) {
+                Ok(entries) => {
+                    for entry in entries {
+                        match entry {
+                            Ok(entry) => {
+                                let file_name = entry.file_name().to_string_lossy().to_string();
+                                if file_name.starts_with(prefix) && entry.path().is_file() {
+                                    matches.push(format!("{} ", entry.file_name().display()));
+                                }
+                            },
+                            Err(_) => (),
+                        }
+                    }
+                },
+                Err(_) => (),
+            }
+            matches
+    }
 }
 
 
@@ -101,15 +141,12 @@ impl Completer for CommandHelper {
         };
         let prefix = &line[start..pos];
 
-        self.update_commands();
-        let commands = self.commands.borrow();
-
-        // TODO: less naive approach; a Trie?
-        for cmd in &*commands {
-            if cmd.starts_with(prefix) {
-                matches.push(format!("{} ", cmd));
-            }
-        }
+        // TODO: spaces at the beginning
+        matches = if start > 0 {
+            self.complete_file(&prefix)
+        } else {
+            self.complete_command(&prefix)
+        };
 
         Ok((start, matches))
     }
