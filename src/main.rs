@@ -15,9 +15,7 @@ fn main() {
         .completion_type(rustyline::CompletionType::List)
         .build();
     let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::with_config(rl_config).unwrap();
-    rl.set_helper(Some(CommandHelper { 
-        commands: prepare_commands() 
-    }));
+    rl.set_helper(Some(CommandHelper::new()));
 
     loop {
         let command = get_command(&mut rl);
@@ -26,18 +24,6 @@ fn main() {
         eval(&command, &args, &mut buffers);
         // println!("{:?}", &args);
     }
-}
-
-fn prepare_commands() -> Vec<String> {
-    let mut commands: Vec<String> = vec!["echo", "exit", "type", "pwd", "cd"]
-        .into_iter()
-        .map(String::from)
-        .collect();
-    let execs = executables(); 
-    commands.extend(execs);
-    commands.sort();
-    commands.dedup();
-    commands
 }
 
 fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> String {
@@ -239,36 +225,6 @@ fn cmd_from_path(command: &str) -> Option<Executable> {
         }
     }
     None
-}
-
-
-
-fn executables() -> Vec<String> {
-    let path = env::var("PATH").unwrap();
-    let mut paths = env::split_paths(&path);
-    let mut executables = Vec::new();
-    while let Some(path) = paths.next() {
-        match fs::read_dir(path) {
-            Ok(entries) => {
-                for entry in entries {
-                    match entry {
-                        Ok(entry) => {
-                            if entry.path().is_file() {
-                                if let Ok(metadata) = fs::metadata(&entry.path()) {
-                                    if metadata.permissions().mode() & 0o111 != 0 {
-                                        executables.push(entry.file_name().to_string_lossy().to_string());
-                                    }
-                                }
-                            }
-                        },
-                        Err(_) => (),
-                    }
-                }
-            },
-            Err(_) => (),
-        }
-    }
-    executables
 }
 
 
