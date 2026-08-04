@@ -78,8 +78,12 @@ impl CommandHelper {
                         match entry {
                             Ok(entry) => {
                                 let file_name = entry.file_name().to_string_lossy().to_string();
-                                if file_name.starts_with(prefix) && entry.path().is_file() {
-                                    matches.push(format!("{} ", entry.file_name().display()));
+                                if file_name.starts_with(prefix) {
+                                    if entry.path().is_file() {
+                                        matches.push(format!("{} ", entry.file_name().display()));
+                                    } else if  entry.path().is_dir() {
+                                        matches.push(format!("{}/", entry.file_name().display()));
+                                    }
                                 }
                             },
                             Err(_) => (),
