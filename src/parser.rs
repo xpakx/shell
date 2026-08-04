@@ -97,6 +97,7 @@ pub enum Builtin {
     Type,
     Pwd,
     Cd,
+    Complete,
 }
 
 pub struct Executable {
@@ -112,6 +113,7 @@ impl Cmd {
             "type" => Cmd::Builtin(Builtin::Type),
             "pwd" => Cmd::Builtin(Builtin::Pwd),
             "cd" => Cmd::Builtin(Builtin::Cd),
+            "complete" => Cmd::Builtin(Builtin::Complete),
             _ => match cmd_from_path(command) {
                 Option::None => Cmd::Unknown(command.to_string()),
                 Some(data) => Cmd::External(data),

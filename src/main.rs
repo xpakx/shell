@@ -71,6 +71,12 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers) {
                     }
                 }
             },
+            Builtin::Complete => {
+                let p = find_flag(&args, "-p");
+                if let Some(p) = p {
+                    writeln!(buffers.err, "complete: {}: no completion specification", p).unwrap();
+                }
+            },
     }
 }
 
