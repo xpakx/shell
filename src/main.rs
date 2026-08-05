@@ -1,5 +1,5 @@
 use core::writeln;
-use std::{io::{self, Write, BufWriter}, process::exit};
+use std::{collections::HashMap, io::{self, BufWriter, Write}, process::exit};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
@@ -18,12 +18,13 @@ fn main() {
         .build();
     let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::with_config(rl_config).unwrap();
     rl.set_helper(Some(CommandHelper::new()));
+    let mut completions: HashMap<String, String> = HashMap::new();
 
     loop {
         let command = get_command(&mut rl);
         let (command, mut args) = parse_command(&command);
         let mut buffers = get_buffers(&mut args);
-        eval(&command, &args, &mut buffers);
+        eval(&command, &args, &mut buffers, &mut completions);
         // println!("{:?}", &args);
     }
 }
@@ -36,15 +37,15 @@ fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> Str
     }
 }
 
-fn eval(command: &Cmd, args: &Vec<String>, buffers: &mut Buffers) {
+fn eval(command: &Cmd, args: &Vec<String>, buffers: &mut Buffers, completions: &mut HashMap<String, String>) {
     match command {
-        Cmd::Builtin(cmd) => run_builtin(cmd, args, buffers),
+        Cmd::Builtin(cmd) => run_builtin(cmd, args, buffers, completions),
         Cmd::External(cmd) => run_external(cmd, args, buffers),
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
 
-fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers) {
+fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers, completions: &mut HashMap<String, String>) {
     match cmd {
             Builtin::Exit => exit(0),
             Builtin::Echo => {
@@ -73,9 +74,16 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers) {
             },
             Builtin::Complete => {
                 let p = find_flag(&args, "-p");
-                if let Some(p) = p {
-                    writeln!(buffers.err, "complete: {}: no completion specification", p).unwrap();
+                if let Some(command) = p {
+                    match completions.get(command) {
+                        Option::Some(path) => writeln!(buffers.err, "complete -C '{}' {}", path, command).unwrap(),
+                        Option::None => writeln!(buffers.err, "complete: {}: no completion specification", command).unwrap(),
+                    };
                 }
+                let c = find_flag_double(&args, "-C");
+                if let Some((path, command)) = c {
+                    completions.insert(command.clone(), path.clone());
+                };
             },
     }
 }
@@ -196,6 +204,12 @@ fn find_flag<'a>(input: &'a [String], flag: &str) -> Option<&'a String> {
     input.iter()
         .position(|x| x.as_str() == flag)
         .and_then(|index| input.get(index + 1))
+}
+
+
+fn find_flag_double<'a>(input: &'a [String], flag: &str) -> Option<(&'a String, &'a String)> {
+    let index = input.iter().position(|x| x.as_str() == flag)?;
+    Some((input.get(index + 1)?, input.get(index + 2)?))
 }
 
 
