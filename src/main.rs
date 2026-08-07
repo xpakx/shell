@@ -1,10 +1,11 @@
-use core::writeln;
+use core::{cell::RefCell, writeln};
 use std::{collections::HashMap, io::{self, BufWriter, Write}, process::exit};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
 use std::process::Command;
 use rustyline::{self, history::DefaultHistory};
+use std::rc::Rc;
 
 mod readline;
 use readline::CommandHelper;
@@ -17,14 +18,14 @@ fn main() {
         .completion_type(rustyline::CompletionType::List)
         .build();
     let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::with_config(rl_config).unwrap();
-    rl.set_helper(Some(CommandHelper::new()));
-    let mut completions: HashMap<String, String> = HashMap::new();
+    let completions: Rc<RefCell<HashMap<String, String>>> =  Rc::new(RefCell::new(HashMap::new()));
+    rl.set_helper(Some(CommandHelper::new(Rc::clone(&completions))));
 
     loop {
         let command = get_command(&mut rl);
         let (command, mut args) = parse_command(&command);
         let mut buffers = get_buffers(&mut args);
-        eval(&command, &args, &mut buffers, &mut completions);
+        eval(&command, &args, &mut buffers, Rc::clone(&completions));
         // println!("{:?}", &args);
     }
 }
@@ -37,7 +38,12 @@ fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> Str
     }
 }
 
-fn eval(command: &Cmd, args: &Vec<String>, buffers: &mut Buffers, completions: &mut HashMap<String, String>) {
+fn eval(
+    command: &Cmd,
+    args: &Vec<String>,
+    buffers: &mut Buffers,
+    completions: Rc<RefCell<HashMap<String, String>>>
+) {
     match command {
         Cmd::Builtin(cmd) => run_builtin(cmd, args, buffers, completions),
         Cmd::External(cmd) => run_external(cmd, args, buffers),
@@ -45,7 +51,12 @@ fn eval(command: &Cmd, args: &Vec<String>, buffers: &mut Buffers, completions: &
     }
 }
 
-fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers, completions: &mut HashMap<String, String>) {
+fn run_builtin(
+    cmd: &Builtin,
+    args: &Vec<String>,
+    buffers: &mut Buffers,
+    completions: Rc<RefCell<HashMap<String, String>>>
+) {
     match cmd {
             Builtin::Exit => exit(0),
             Builtin::Echo => {
@@ -75,14 +86,15 @@ fn run_builtin(cmd: &Builtin, args: &Vec<String>, buffers: &mut Buffers, complet
             Builtin::Complete => {
                 let p = find_flag(&args, "-p");
                 if let Some(command) = p {
-                    match completions.get(command) {
+                    match completions.borrow().get(command) {
                         Option::Some(path) => writeln!(buffers.err, "complete -C '{}' {}", path, command).unwrap(),
                         Option::None => writeln!(buffers.err, "complete: {}: no completion specification", command).unwrap(),
                     };
                 }
                 let c = find_flag_double(&args, "-C");
                 if let Some((path, command)) = c {
-                    completions.insert(command.clone(), path.clone());
+                    let mut map = completions.borrow_mut();
+                    map.insert(command.clone(), path.clone());
                 };
             },
     }

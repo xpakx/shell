@@ -1,8 +1,11 @@
 use core::cell::RefCell;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
+use std::process::Command;
+use std::rc::Rc;
 
 use rustyline::completion::Completer;
 use rustyline::highlight::Highlighter;
@@ -14,13 +17,15 @@ use rustyline::{Context, Helper, Result};
 pub struct CommandHelper {
     commands: RefCell<Vec<String>>,
     path: RefCell<String>,
+    completions: Rc<RefCell<HashMap<String, String>>>,
 }
 
 impl CommandHelper {
-    pub fn new() -> Self {
+    pub fn new(completions: Rc<RefCell<HashMap<String, String>>>) -> Self {
         CommandHelper { 
             commands: RefCell::new(Vec::new()),
             path: RefCell::new(String::new()),
+            completions,
         }
     }
 
@@ -95,6 +100,18 @@ impl CommandHelper {
             matches.sort();
             matches
     }
+
+
+    pub fn complete_completer(&self, path: &str) -> Vec<String> {
+        let mut cmd = Command::new(path);
+        match cmd.output() {
+            Ok(output) => String::from_utf8_lossy(&output.stdout)
+                .split_whitespace()
+                .map(|s| format!("{} ", s))
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
 }
 
 
@@ -161,17 +178,36 @@ impl Completer for CommandHelper {
 
         // TODO: spaces at the beginning
         matches = if start > 0 {
-            let start_curr = match prefix.rfind('/') {
-                Option::Some(i) => if i >= prefix.len() {Some(i)} else {Some(i+1)},
+            let completer = match line.find(' ') {
+                Option::Some(i) => {
+                    let path = self.completions.borrow().get(&line[0..i]).cloned();
+                    match path {
+                        Option::Some(path) => Some(path),
+                        Option::None => None,
+                    }
+                },
                 Option::None => None,
             };
-            let (path, prefix, new_start) = match start_curr {
-                Option::Some(i) => (&prefix[..i], &prefix[i..], start+i),
-                Option::None => ("", prefix, start),
 
-            };
-            start = new_start;
-            self.complete_file(&path, &prefix)
+            match completer {
+                Option::Some(path) => {
+                    self.complete_completer(&path)
+                },
+                Option::None => {
+                    let start_curr = match prefix.rfind('/') {
+                        Option::Some(i) => if i >= prefix.len() {Some(i)} else {Some(i+1)},
+                        Option::None => None,
+                    };
+                    let (path, prefix, new_start) = match start_curr {
+                        Option::Some(i) => (&prefix[..i], &prefix[i..], start+i),
+                        Option::None => ("", prefix, start),
+
+                    };
+                    start = new_start;
+                    self.complete_file(&path, &prefix)
+                }
+
+            }
         } else {
             self.complete_command(&prefix)
         };
