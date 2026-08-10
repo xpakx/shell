@@ -14,17 +14,19 @@ enum ParseMode {
 pub struct CommandLine {
     pub cmd: Cmd,
     pub tokens: Vec<String>,
+    pub origin: String,
     pub run_in_bg: bool,
 }
 
 impl CommandLine {
-    pub fn new(mut tokens: Vec<String>) -> CommandLine {
+    pub fn new(mut tokens: Vec<String>, origin: &str) -> CommandLine {
 
         if tokens.is_empty() {
             return CommandLine{
                 cmd: Cmd::Unknown(String::new()),
                 tokens,
                 run_in_bg: false,
+                origin: String::from(origin),
             }
         }
 
@@ -34,6 +36,7 @@ impl CommandLine {
             cmd: command,
             tokens,
             run_in_bg: false,
+            origin: String::from(origin),
         }
     }
 
@@ -129,7 +132,7 @@ pub fn parse_command(command: &str) -> CommandLine {
     if arg != "" {
         args.push(arg);
     }
-    CommandLine::new(args)
+    CommandLine::new(args, command)
 }
 
 
