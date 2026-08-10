@@ -25,6 +25,7 @@ fn main() {
         let command = get_command(&mut rl);
         let mut cmd_line = parse_command(&command);
         let mut buffers = get_buffers(&mut cmd_line.tokens);
+        cmd_line.enable_bg();
         eval(&cmd_line, &mut buffers, Rc::clone(&completions));
         // println!("{:?}", &args);
     }
@@ -110,15 +111,23 @@ fn run_external(cmd: &Executable, command: &CommandLine, buffers: &mut Buffers) 
     if !command.tokens.is_empty() {
         cmd.args(&command.tokens);
     }
-    match cmd.output() {
-        Ok(output) => {
-            // TODO: interleaving
-            let _ = buffers.out.write_all(&output.stdout);
-            let _ = buffers.out.flush();
-            let _ = buffers.err.write_all(&output.stderr);
-            let _ = buffers.err.flush();
-        },
-        Err(_) => (),
+    if command.run_in_bg {
+        // TODO: redirects
+        // TODO: job num
+        let child = cmd.spawn().unwrap();
+        let pid = child.id();
+        println!("[1] {pid}");
+    } else {
+        match cmd.output() {
+            Ok(output) => {
+                // TODO: interleaving
+                let _ = buffers.out.write_all(&output.stdout);
+                let _ = buffers.out.flush();
+                let _ = buffers.err.write_all(&output.stderr);
+                let _ = buffers.err.flush();
+            },
+            Err(_) => (),
+        }
     }
 }
 

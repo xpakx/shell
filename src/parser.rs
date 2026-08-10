@@ -1,3 +1,4 @@
+use core::option::Option;
 use std::path::PathBuf;
 use std::env;
 use std::fs;
@@ -13,6 +14,7 @@ enum ParseMode {
 pub struct CommandLine {
     pub cmd: Cmd,
     pub tokens: Vec<String>,
+    pub run_in_bg: bool,
 }
 
 impl CommandLine {
@@ -21,7 +23,8 @@ impl CommandLine {
         if tokens.is_empty() {
             return CommandLine{
                 cmd: Cmd::Unknown(String::new()),
-                tokens
+                tokens,
+                run_in_bg: false,
             }
         }
 
@@ -29,7 +32,8 @@ impl CommandLine {
         let command = Cmd::resolve(&command);
         CommandLine {
             cmd: command,
-            tokens
+            tokens,
+            run_in_bg: false,
         }
     }
 
@@ -47,6 +51,16 @@ impl CommandLine {
     #[allow(dead_code)]
     pub fn find_bool_flag(&self, flag: &str) -> bool {
         self.tokens.iter() .position(|x| x.as_str() == flag).is_some()
+    }
+
+    pub fn enable_bg(&mut self) {
+        self.run_in_bg = match self.tokens.last() {
+            Option::Some(x) if x == "&" => {
+                self.tokens.pop();
+                true
+            },
+            _ => false,
+        }
     }
 }
 
