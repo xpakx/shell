@@ -123,17 +123,16 @@ impl CommandHelper {
             0 => 0,
             i => i-1,
         };
-        let mut last_start = match (&line[..last_end]).rfind(' ') {
+        let last_start = match (&line[..last_end]).rfind(' ') {
             Option::Some(i) => i+1,
             Option::None => 0,
         };
-        if last_start <= cmd_end {
-            last_start = last_end;
-        }
         let last = &line[last_start..last_end];
 
         let mut cmd = Command::new(path);
         cmd.args([cmd_name, curr, last]);
+        cmd.env("COMP_LINE", &line);
+        cmd.env("COMP_POINT", format!("{}", cursor));
         match cmd.output() {
             Ok(output) => String::from_utf8_lossy(&output.stdout)
                 .split_whitespace()
