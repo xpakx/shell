@@ -10,8 +10,48 @@ enum ParseMode {
     DoubleQuote,
 }
 
+pub struct CommandLine {
+    pub cmd: Cmd,
+    pub tokens: Vec<String>,
+}
 
-pub fn parse_command(command: &str) -> (Cmd, Vec<String>) {
+impl CommandLine {
+    pub fn new(mut tokens: Vec<String>) -> CommandLine {
+
+        if tokens.is_empty() {
+            return CommandLine{
+                cmd: Cmd::Unknown(String::new()),
+                tokens
+            }
+        }
+
+        let command = tokens.remove(0);
+        let command = Cmd::resolve(&command);
+        CommandLine {
+            cmd: command,
+            tokens
+        }
+    }
+
+    pub fn find_flag(&self, flag: &str) -> Option<&String> {
+        self.tokens.iter()
+            .position(|x| x.as_str() == flag)
+            .and_then(|index| self.tokens.get(index + 1))
+    }
+
+    pub fn find_flag_double(&self, flag: &str) -> Option<(& String, &String)> {
+        let index = self.tokens.iter().position(|x| x.as_str() == flag)?;
+        Some((self.tokens.get(index + 1)?, self.tokens.get(index + 2)?))
+    }
+
+    #[allow(dead_code)]
+    pub fn find_bool_flag(&self, flag: &str) -> bool {
+        self.tokens.iter() .position(|x| x.as_str() == flag).is_some()
+    }
+}
+
+
+pub fn parse_command(command: &str) -> CommandLine {
     let home = std::env::home_dir()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_default();
@@ -75,13 +115,7 @@ pub fn parse_command(command: &str) -> (Cmd, Vec<String>) {
     if arg != "" {
         args.push(arg);
     }
-    if args.is_empty() {
-       return (Cmd::Unknown(String::new()), args)
-    }
-
-    let command = args.remove(0);
-    let command = Cmd::resolve(&command);
-    (command, args)
+    CommandLine::new(args)
 }
 
 

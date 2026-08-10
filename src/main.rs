@@ -11,7 +11,7 @@ mod readline;
 use readline::CommandHelper;
 
 mod parser;
-use parser::{parse_command, Cmd, Builtin, Executable};
+use parser::{parse_command, Cmd, Builtin, Executable, CommandLine};
 
 fn main() {
     let rl_config = rustyline::Config::builder()
@@ -23,9 +23,9 @@ fn main() {
 
     loop {
         let command = get_command(&mut rl);
-        let (command, mut args) = parse_command(&command);
-        let mut buffers = get_buffers(&mut args);
-        eval(&command, &args, &mut buffers, Rc::clone(&completions));
+        let mut cmd_line = parse_command(&command);
+        let mut buffers = get_buffers(&mut cmd_line.tokens);
+        eval(&cmd_line, &mut buffers, Rc::clone(&completions));
         // println!("{:?}", &args);
     }
 }
@@ -39,34 +39,33 @@ fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> Str
 }
 
 fn eval(
-    command: &Cmd,
-    args: &Vec<String>,
+    command: &CommandLine,
     buffers: &mut Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>
 ) {
-    match command {
-        Cmd::Builtin(cmd) => run_builtin(cmd, args, buffers, completions),
-        Cmd::External(cmd) => run_external(cmd, args, buffers),
+    match &command.cmd {
+        Cmd::Builtin(cmd) => run_builtin(cmd, command, buffers, completions),
+        Cmd::External(cmd) => run_external(cmd, command, buffers),
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
 
 fn run_builtin(
     cmd: &Builtin,
-    args: &Vec<String>,
+    command: &CommandLine,
     buffers: &mut Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>
 ) {
     match cmd {
             Builtin::Exit => exit(0),
             Builtin::Echo => {
-                let msg = args.join(" ");
+                let msg = command.tokens.join(" ");
                 writeln!(buffers.out, "{}", msg).unwrap();
             },
-            Builtin::Type => match args.is_empty() {
+            Builtin::Type => match command.tokens.is_empty() {
                 true => writeln!(buffers.out, "").unwrap(),
-                false => match Cmd::resolve(&args[0]) {
-                    Cmd::Builtin(_) => writeln!(buffers.out, "{} is a shell builtin", &args[0]).unwrap(),
+                false => match Cmd::resolve(&command.tokens[0]) {
+                    Cmd::Builtin(_) => writeln!(buffers.out, "{} is a shell builtin", &command.tokens[0]).unwrap(),
                     Cmd::External(cmd) => writeln!(buffers.out, "{} is {}", &cmd.name, &cmd.path.display()).unwrap(),
                     Cmd::Unknown(cmd) => writeln!(buffers.out, "{} not found", &cmd).unwrap(),
                 },
@@ -76,27 +75,27 @@ fn run_builtin(
                 _ => writeln!(buffers.err, "should not happen").unwrap(),
             },
             Builtin::Cd => {
-                if !args.is_empty() {
-                    let path = Path::new(&args[0]);
+                if !command.tokens.is_empty() {
+                    let path = Path::new(&command.tokens[0]);
                     if !path.is_dir() || !env::set_current_dir(path).is_ok() {
                         writeln!(buffers.err, "cd: {}: No such file or directory", path.display()).unwrap();
                     }
                 }
             },
             Builtin::Complete => {
-                let p = find_flag(&args, "-p");
+                let p = command.find_flag("-p");
                 if let Some(command) = p {
                     match completions.borrow().get(command) {
                         Option::Some(path) => writeln!(buffers.err, "complete -C '{}' {}", path, command).unwrap(),
                         Option::None => writeln!(buffers.err, "complete: {}: no completion specification", command).unwrap(),
                     };
                 }
-                let c = find_flag_double(&args, "-C");
+                let c = command.find_flag_double("-C");
                 if let Some((path, command)) = c {
                     let mut map = completions.borrow_mut();
                     map.insert(command.clone(), path.clone());
                 };
-                let r = find_flag(&args, "-r");
+                let r = command.find_flag("-r");
                 if let Some(command) = r {
                     completions.borrow_mut().remove(command);
                 }
@@ -105,10 +104,10 @@ fn run_builtin(
 }
 
 
-fn run_external(cmd: &Executable, args: &Vec<String>, buffers: &mut Buffers) {
+fn run_external(cmd: &Executable, command: &CommandLine, buffers: &mut Buffers) {
     let mut cmd = Command::new(cmd.name.to_string());
-    if !args.is_empty() {
-        cmd.args(args);
+    if !command.tokens.is_empty() {
+        cmd.args(&command.tokens);
     }
     match cmd.output() {
         Ok(output) => {
@@ -213,23 +212,4 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
     }
 
     Buffers {out, err}
-}
-
-
-fn find_flag<'a>(input: &'a [String], flag: &str) -> Option<&'a String> {
-    input.iter()
-        .position(|x| x.as_str() == flag)
-        .and_then(|index| input.get(index + 1))
-}
-
-
-fn find_flag_double<'a>(input: &'a [String], flag: &str) -> Option<(&'a String, &'a String)> {
-    let index = input.iter().position(|x| x.as_str() == flag)?;
-    Some((input.get(index + 1)?, input.get(index + 2)?))
-}
-
-
-#[allow(dead_code)]
-fn find_bool_flag<'a>(input: &'a [String], flag: &str) -> bool {
-    input.iter() .position(|x| x.as_str() == flag).is_some()
 }

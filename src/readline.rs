@@ -109,6 +109,8 @@ impl CommandHelper {
         cmd_end: usize,
         cursor: usize,
     ) -> Vec<String> {
+        // TODO: this won't work with mutliple spaces btw 
+        // segments. need to update with proper tokenization
         let cmd_name = &line[0..cmd_end];
         let curr_start = match (&line[..cursor]).rfind(' ') {
             Option::Some(i) => i+1,
