@@ -100,6 +100,7 @@ fn run_builtin(
                     completions.borrow_mut().remove(command);
                 }
             },
+            Builtin::Jobs => (),
     }
 }
 
