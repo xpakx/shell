@@ -96,6 +96,10 @@ fn run_builtin(
                     let mut map = completions.borrow_mut();
                     map.insert(command.clone(), path.clone());
                 };
+                let r = find_flag(&args, "-r");
+                if let Some(command) = r {
+                    completions.borrow_mut().remove(command);
+                }
             },
     }
 }
@@ -225,6 +229,7 @@ fn find_flag_double<'a>(input: &'a [String], flag: &str) -> Option<(&'a String, 
 }
 
 
+#[allow(dead_code)]
 fn find_bool_flag<'a>(input: &'a [String], flag: &str) -> bool {
     input.iter() .position(|x| x.as_str() == flag).is_some()
 }
