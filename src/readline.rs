@@ -102,8 +102,38 @@ impl CommandHelper {
     }
 
 
-    pub fn complete_completer(&self, path: &str) -> Vec<String> {
+    pub fn complete_completer(
+        &self,
+        path: &str,
+        line: &str,
+        cmd_end: usize,
+        cursor: usize,
+    ) -> Vec<String> {
+        let cmd_name = &line[0..cmd_end];
+        let curr_start = match (&line[..cursor]).rfind(' ') {
+            Option::Some(i) => i+1,
+            Option::None => 0,
+        };
+        let curr_end = match (&line[cursor..]).find(' ') {
+            Option::Some(i) => i+cursor,
+            Option::None => cursor,
+        };
+        let curr = &line[curr_start..curr_end];
+        let last_end = match curr_start {
+            0 => 0,
+            i => i-1,
+        };
+        let mut last_start = match (&line[..last_end]).rfind(' ') {
+            Option::Some(i) => i+1,
+            Option::None => 0,
+        };
+        if last_start <= cmd_end {
+            last_start = last_end;
+        }
+        let last = &line[last_start..last_end];
+
         let mut cmd = Command::new(path);
+        cmd.args([cmd_name, curr, last]);
         match cmd.output() {
             Ok(output) => String::from_utf8_lossy(&output.stdout)
                 .split_whitespace()
@@ -182,7 +212,7 @@ impl Completer for CommandHelper {
                 Option::Some(i) => {
                     let path = self.completions.borrow().get(&line[0..i]).cloned();
                     match path {
-                        Option::Some(path) => Some(path),
+                        Option::Some(path) => Some((path, i)),
                         Option::None => None,
                     }
                 },
@@ -190,8 +220,8 @@ impl Completer for CommandHelper {
             };
 
             match completer {
-                Option::Some(path) => {
-                    self.complete_completer(&path)
+                Option::Some((path, idx)) => {
+                    self.complete_completer(&path, &line, idx, pos)
                 },
                 Option::None => {
                     let start_curr = match prefix.rfind('/') {
