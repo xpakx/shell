@@ -146,7 +146,7 @@ fn run_external(
         // TODO: better job num
         let child = cmd.spawn().unwrap();
         let pid = child.id();
-        let id = jobs.len() + 1;
+        let id = jobs.last().map_or(0, |job| job.id) + 1;
         println!("[{id}] {pid}");
         jobs.push(Job {
             id: id,
