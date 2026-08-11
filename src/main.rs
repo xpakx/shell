@@ -13,6 +13,13 @@ use readline::CommandHelper;
 mod parser;
 use parser::{parse_command, Cmd, Builtin, Executable, CommandLine};
 
+struct Job {
+    id: usize,
+    name: String,
+    pid: u32,
+    origin: String,
+}
+
 fn main() {
     let rl_config = rustyline::Config::builder()
         .completion_type(rustyline::CompletionType::List)
@@ -20,13 +27,14 @@ fn main() {
     let mut rl: rustyline::Editor<CommandHelper, DefaultHistory> = rustyline::Editor::with_config(rl_config).unwrap();
     let completions: Rc<RefCell<HashMap<String, String>>> =  Rc::new(RefCell::new(HashMap::new()));
     rl.set_helper(Some(CommandHelper::new(Rc::clone(&completions))));
+    let mut jobs: Vec<Job> = Vec::new();
 
     loop {
         let command = get_command(&mut rl);
         let mut cmd_line = parse_command(&command);
         let buffers = get_buffers(&mut cmd_line.tokens);
         cmd_line.enable_bg();
-        eval(&cmd_line, buffers, Rc::clone(&completions));
+        eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
         // println!("{:?}", &args);
     }
 }
@@ -42,11 +50,12 @@ fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> Str
 fn eval(
     command: &CommandLine,
     buffers: Buffers,
-    completions: Rc<RefCell<HashMap<String, String>>>
+    completions: Rc<RefCell<HashMap<String, String>>>,
+    jobs: &mut Vec<Job>,
 ) {
     match &command.cmd {
-        Cmd::Builtin(cmd) => run_builtin(cmd, command, buffers, completions),
-        Cmd::External(cmd) => run_external(cmd, command, buffers),
+        Cmd::Builtin(cmd) => run_builtin(cmd, command, buffers, completions, jobs),
+        Cmd::External(cmd) => run_external(cmd, command, buffers, jobs),
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
@@ -55,7 +64,8 @@ fn run_builtin(
     cmd: &Builtin,
     command: &CommandLine,
     mut buffers: Buffers,
-    completions: Rc<RefCell<HashMap<String, String>>>
+    completions: Rc<RefCell<HashMap<String, String>>>,
+    jobs: &Vec<Job>,
 ) {
     match cmd {
             Builtin::Exit => exit(0),
@@ -101,23 +111,49 @@ fn run_builtin(
                     completions.borrow_mut().remove(command);
                 }
             },
-            Builtin::Jobs => (),
+            Builtin::Jobs => {
+                if !jobs.is_empty() {
+                    let len = jobs.len();
+                    for (i, job) in jobs.iter().enumerate() {
+                        let marker = match i {
+                            x if x == len-1 => "+",
+                            x if x == len-2 => "-",
+                            _ => " ",
+                        };
+                        writeln!(buffers.out(), "[{}]{}  {:<24}{}", job.id, marker, "Running", job.origin).unwrap();
+                    }
+                }
+            },
     }
 }
 
 
-fn run_external(cmd: &Executable, command: &CommandLine, buffers: Buffers) {
-    let mut cmd = Command::new(cmd.name.to_string());
+fn run_external(
+    cmd_type: &Executable,
+    command: &CommandLine,
+    buffers: Buffers,
+    jobs: &mut Vec<Job>,
+) {
+    let mut cmd = Command::new(cmd_type.name.to_string());
     if !command.tokens.is_empty() {
         cmd.args(&command.tokens);
     }
-    cmd.stdin(Stdio::inherit()); cmd.stdout(Stdio::inherit()); cmd.stderr(Stdio::inherit());
     if command.run_in_bg {
+        cmd.stdin(Stdio::inherit());
+        cmd.stdout(Stdio::inherit());
+        cmd.stderr(Stdio::inherit());
         // TODO: redirects
-        // TODO: job num
+        // TODO: better job num
         let child = cmd.spawn().unwrap();
         let pid = child.id();
-        println!("[1] {pid}");
+        let id = jobs.len() + 1;
+        println!("[{id}] {pid}");
+        jobs.push(Job {
+            id: id,
+            name: cmd_type.name.clone(),
+            origin: command.origin.clone(),
+            pid: pid,
+        });
     } else {
 
         match buffers.out_file {
