@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File, io::{self, Write}, process::{Stdio, ex
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
-use std::process::Command;
+use std::process::{Command, Child};
 use rustyline::{self, history::DefaultHistory};
 use std::rc::Rc;
 
@@ -13,11 +13,19 @@ use readline::CommandHelper;
 mod parser;
 use parser::{parse_command, Cmd, Builtin, Executable, CommandLine};
 
+#[derive(PartialEq)]
+enum JobState {
+    Running,
+    Done,
+}
+
 struct Job {
     id: usize,
     name: String,
     pid: u32,
     origin: String,
+    state: JobState,
+    child: Child,
 }
 
 fn main() {
@@ -65,7 +73,7 @@ fn run_builtin(
     command: &CommandLine,
     mut buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
-    jobs: &Vec<Job>,
+    jobs: &mut Vec<Job>,
 ) {
     match cmd {
             Builtin::Exit => exit(0),
@@ -114,14 +122,27 @@ fn run_builtin(
             Builtin::Jobs => {
                 if !jobs.is_empty() {
                     let len = jobs.len();
-                    for (i, job) in jobs.iter().enumerate() {
+                    for (i, job) in jobs.iter_mut().enumerate() {
+                        match job.child.try_wait() {
+                            Ok(Some(_)) => job.state = JobState::Done,
+                            _ => (),
+                        };
                         let marker = match i {
                             x if x == len-1 => "+",
                             x if x == len-2 => "-",
                             _ => " ",
                         };
-                        writeln!(buffers.out(), "[{}]{}  {:<24}{}", job.id, marker, "Running", job.origin).unwrap();
+                        let state = match job.state {
+                            JobState::Done => "Done",
+                            JobState::Running => "Running",
+                        };
+                        let origin = match job.state {
+                            JobState::Done => &job.origin[..job.origin.len()-1],
+                            JobState::Running => &job.origin,
+                        };
+                        writeln!(buffers.out(), "[{}]{}  {:<24}{}", job.id, marker, state, origin).unwrap();
                     }
+                    jobs.retain(|job| job.state != JobState::Done);
                 }
             },
     }
@@ -153,6 +174,8 @@ fn run_external(
             name: cmd_type.name.clone(),
             origin: command.origin.clone(),
             pid: pid,
+            state: JobState::Running,
+            child,
         });
     } else {
 
