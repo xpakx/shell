@@ -1,5 +1,5 @@
 use core::{cell::RefCell, writeln};
-use std::{collections::HashMap, fs::File, io::{self, Write}, process::{Stdio, exit}};
+use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, process::{Stdio, exit}};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
@@ -43,8 +43,32 @@ fn main() {
         let buffers = get_buffers(&mut cmd_line.tokens);
         cmd_line.enable_bg();
         eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
+        reap_jobs(&mut jobs);
         // println!("{:?}", &args);
     }
+}
+
+fn reap_jobs(jobs: &mut Vec<Job>) {
+    if jobs.is_empty() {
+        return;
+    }
+    let len = jobs.len();
+    for (i, job) in jobs.iter_mut().enumerate() {
+        match job.child.try_wait() {
+            Ok(Some(_)) => job.state = JobState::Done,
+            _ => (),
+        };
+        if job.state == JobState::Done {
+            let marker = match i {
+                x if x == len-1 => "+",
+                x if x == len-2 => "-",
+                _ => " ",
+            };
+            let origin = &job.origin[..job.origin.len()-1];
+            writeln!(stdout(), "[{}]{}  {:<24}{}", job.id, marker, "Done", origin).unwrap();
+        }
+    }
+    jobs.retain(|job| job.state != JobState::Done);
 }
 
 fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> String {
