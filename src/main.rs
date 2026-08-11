@@ -1,5 +1,5 @@
 use core::{cell::RefCell, writeln};
-use std::{collections::HashMap, io::{self, BufWriter, Write}, process::exit};
+use std::{collections::HashMap, fs::File, io::{self, Write}, process::{Stdio, exit}};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
@@ -24,9 +24,9 @@ fn main() {
     loop {
         let command = get_command(&mut rl);
         let mut cmd_line = parse_command(&command);
-        let mut buffers = get_buffers(&mut cmd_line.tokens);
+        let buffers = get_buffers(&mut cmd_line.tokens);
         cmd_line.enable_bg();
-        eval(&cmd_line, &mut buffers, Rc::clone(&completions));
+        eval(&cmd_line, buffers, Rc::clone(&completions));
         // println!("{:?}", &args);
     }
 }
@@ -41,7 +41,7 @@ fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> Str
 
 fn eval(
     command: &CommandLine,
-    buffers: &mut Buffers,
+    buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>
 ) {
     match &command.cmd {
@@ -54,32 +54,32 @@ fn eval(
 fn run_builtin(
     cmd: &Builtin,
     command: &CommandLine,
-    buffers: &mut Buffers,
+    mut buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>
 ) {
     match cmd {
             Builtin::Exit => exit(0),
             Builtin::Echo => {
                 let msg = command.tokens.join(" ");
-                writeln!(buffers.out, "{}", msg).unwrap();
+                writeln!(buffers.out(), "{}", msg).unwrap();
             },
             Builtin::Type => match command.tokens.is_empty() {
-                true => writeln!(buffers.out, "").unwrap(),
+                true => writeln!(buffers.out(), "").unwrap(),
                 false => match Cmd::resolve(&command.tokens[0]) {
-                    Cmd::Builtin(_) => writeln!(buffers.out, "{} is a shell builtin", &command.tokens[0]).unwrap(),
-                    Cmd::External(cmd) => writeln!(buffers.out, "{} is {}", &cmd.name, &cmd.path.display()).unwrap(),
-                    Cmd::Unknown(cmd) => writeln!(buffers.out, "{} not found", &cmd).unwrap(),
+                    Cmd::Builtin(_) => writeln!(buffers.out(), "{} is a shell builtin", &command.tokens[0]).unwrap(),
+                    Cmd::External(cmd) => writeln!(buffers.out(), "{} is {}", &cmd.name, &cmd.path.display()).unwrap(),
+                    Cmd::Unknown(cmd) => writeln!(buffers.out(), "{} not found", &cmd).unwrap(),
                 },
             },
             Builtin::Pwd => match env::current_dir() {
-                Ok(cwd) => writeln!(buffers.out, "{}", cwd.to_str().unwrap()).unwrap(),
-                _ => writeln!(buffers.err, "should not happen").unwrap(),
+                Ok(cwd) => writeln!(buffers.out(), "{}", cwd.to_str().unwrap()).unwrap(),
+                _ => writeln!(buffers.err(), "should not happen").unwrap(),
             },
             Builtin::Cd => {
                 if !command.tokens.is_empty() {
                     let path = Path::new(&command.tokens[0]);
                     if !path.is_dir() || !env::set_current_dir(path).is_ok() {
-                        writeln!(buffers.err, "cd: {}: No such file or directory", path.display()).unwrap();
+                        writeln!(buffers.err(), "cd: {}: No such file or directory", path.display()).unwrap();
                     }
                 }
             },
@@ -87,8 +87,8 @@ fn run_builtin(
                 let p = command.find_flag("-p");
                 if let Some(command) = p {
                     match completions.borrow().get(command) {
-                        Option::Some(path) => writeln!(buffers.err, "complete -C '{}' {}", path, command).unwrap(),
-                        Option::None => writeln!(buffers.err, "complete: {}: no completion specification", command).unwrap(),
+                        Option::Some(path) => writeln!(buffers.out(), "complete -C '{}' {}", path, command).unwrap(),
+                        Option::None => writeln!(buffers.err(), "complete: {}: no completion specification", command).unwrap(),
                     };
                 }
                 let c = command.find_flag_double("-C");
@@ -106,11 +106,12 @@ fn run_builtin(
 }
 
 
-fn run_external(cmd: &Executable, command: &CommandLine, buffers: &mut Buffers) {
+fn run_external(cmd: &Executable, command: &CommandLine, buffers: Buffers) {
     let mut cmd = Command::new(cmd.name.to_string());
     if !command.tokens.is_empty() {
         cmd.args(&command.tokens);
     }
+    cmd.stdin(Stdio::inherit()); cmd.stdout(Stdio::inherit()); cmd.stderr(Stdio::inherit());
     if command.run_in_bg {
         // TODO: redirects
         // TODO: job num
@@ -118,23 +119,49 @@ fn run_external(cmd: &Executable, command: &CommandLine, buffers: &mut Buffers) 
         let pid = child.id();
         println!("[1] {pid}");
     } else {
-        match cmd.output() {
-            Ok(output) => {
-                // TODO: interleaving
-                let _ = buffers.out.write_all(&output.stdout);
-                let _ = buffers.out.flush();
-                let _ = buffers.err.write_all(&output.stderr);
-                let _ = buffers.err.flush();
+
+        match buffers.out_file {
+            Option::Some(file) => {
+                cmd.stdout(Stdio::from(file));
             },
-            Err(_) => (),
-        }
+            Option::None => {
+                cmd.stdout(Stdio::inherit());
+            }
+        };
+        match buffers.err_file {
+            Option::Some(file) => {
+                cmd.stderr(Stdio::from(file));
+            },
+            Option::None => {
+                cmd.stderr(Stdio::inherit());
+            }
+        };
+
+        let mut child = cmd.spawn().unwrap();
+        child.wait().unwrap();
     }
 }
 
 
 struct Buffers {
-    out: BufWriter<Box<dyn Write>>,
-    err: BufWriter<Box<dyn Write>>,
+    out_file: Option<File>,
+    err_file: Option<File>,
+}
+
+impl Buffers {
+    pub fn out(&mut self) -> Box<dyn Write + '_> {
+        match &mut self.out_file {
+            Option::Some(file) => Box::new(file),
+            Option::None => Box::new(io::stdout().lock()),
+        }
+    }
+
+    pub fn err(&mut self) -> Box<dyn Write + '_> {
+        match &mut self.err_file {
+            Option::Some(file) => Box::new(file),
+            Option::None => Box::new(io::stderr().lock()),
+        }
+    }
 }
 
 
@@ -191,7 +218,7 @@ fn redirect_err(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
 }
 
 fn get_buffers(args: &mut Vec<String>) -> Buffers {
-    let out: BufWriter<Box<dyn Write>>;
+    let out: Option<File>;
     if let Some(redirect) = redirect_out(args) {
         let mut opts = OpenOptions::new();
         opts.create(true).write(true);
@@ -201,12 +228,12 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
         };
         let file = opts.open(&redirect.path)
             .unwrap_or_else(|err| panic!("cannot open {}: {err}", &redirect.path));
-        out = BufWriter::new(Box::new(file));
+        out = Some(file);
     } else {
-        out = BufWriter::new(Box::new(io::stdout()));
+        out = None;
     }
 
-    let err: BufWriter<Box<dyn Write>>;
+    let err: Option<File>;
     if let Some((mode, out_path)) = redirect_err(args) {
         let mut opts = OpenOptions::new();
         opts.create(true).write(true);
@@ -216,10 +243,10 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
         };
         let file = opts.open(&out_path)
             .unwrap_or_else(|err| panic!("cannot open {out_path}: {err}"));
-        err = BufWriter::new(Box::new(file));
+        err = Some(file);
     } else {
-        err = BufWriter::new(Box::new(io::stderr()));
+        err = None;
     }
 
-    Buffers {out, err}
+    Buffers {out_file: out, err_file: err}
 }
