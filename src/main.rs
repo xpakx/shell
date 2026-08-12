@@ -132,37 +132,39 @@ fn run_external(
         BufferInput::Piped(pipe) => cmd.stdin(Stdio::from(pipe)), // TODO: pipes
     };
 
-    if command.run_in_bg {
+    if command.run_in_bg { // TODO: for now we assume this could only end chain
         cmd.stdout(Stdio::inherit());
         cmd.stderr(Stdio::inherit());
         let child = cmd.spawn().unwrap();
         add_job(jobs, child, cmd_type.name.clone(), command.origin.clone());
-        None
+        return None
+    }
+
+    let should_pipe = command.has_next_in_pipeline && buffers.out_file.is_none();
+    if should_pipe {
+        cmd.stdout(Stdio::piped());
     } else {
-        let should_pipe = command.has_next_in_pipeline && buffers.out_file.is_none();
-        if should_pipe {
-            cmd.stdout(Stdio::piped());
-        } else {
-            match buffers.out_file {
-                Option::Some(file) => cmd.stdout(Stdio::from(file)),
-                Option::None => cmd.stdout(Stdio::inherit()),
-            };
-        }
-
-        match buffers.err_file {
-            Option::Some(file) => cmd.stderr(Stdio::from(file)),
-            Option::None => cmd.stderr(Stdio::inherit()),
+        match buffers.out_file {
+            Option::Some(file) => cmd.stdout(Stdio::from(file)),
+            Option::None => cmd.stdout(Stdio::inherit()),
         };
+    }
 
-        let mut child = cmd.spawn().unwrap();
-        let stdout_pipe = if should_pipe {
-            child.stdout.take()
-        } else {
+    match buffers.err_file {
+        Option::Some(file) => cmd.stderr(Stdio::from(file)),
+        Option::None => cmd.stderr(Stdio::inherit()),
+    };
+
+    let mut child = cmd.spawn().unwrap();
+    let stdout_pipe = match should_pipe {
+        true => child.stdout.take(),
+        false => {
             child.wait().unwrap();
             None
-        };
-        stdout_pipe
-    }
+        }
+    };
+
+    stdout_pipe
 }
 
 enum BufferInput {
