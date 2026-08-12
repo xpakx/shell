@@ -14,7 +14,7 @@ mod parser;
 use parser::{parse_command, Cmd, Builtin, Executable, CommandLine};
 
 mod jobs;
-use jobs::{Job, JobState, reap_jobs};
+use jobs::{Job, JobState, reap_jobs, jobs_cmd};
 
 fn main() {
     let rl_config = rustyline::Config::builder()
@@ -108,32 +108,7 @@ fn run_builtin(
                     completions.borrow_mut().remove(command);
                 }
             },
-            Builtin::Jobs => {
-                if !jobs.is_empty() {
-                    let len = jobs.len();
-                    for (i, job) in jobs.iter_mut().enumerate() {
-                        match job.child.try_wait() {
-                            Ok(Some(_)) => job.state = JobState::Done,
-                            _ => (),
-                        };
-                        let marker = match i {
-                            x if x == len-1 => "+",
-                            x if x == len-2 => "-",
-                            _ => " ",
-                        };
-                        let state = match job.state {
-                            JobState::Done => "Done",
-                            JobState::Running => "Running",
-                        };
-                        let origin = match job.state {
-                            JobState::Done => &job.origin[..job.origin.len()-1],
-                            JobState::Running => &job.origin,
-                        };
-                        writeln!(buffers.out(), "[{}]{}  {:<24}{}", job.id, marker, state, origin).unwrap();
-                    }
-                    jobs.retain(|job| job.state != JobState::Done);
-                }
-            },
+            Builtin::Jobs => jobs_cmd(jobs, buffers),
     }
 }
 
