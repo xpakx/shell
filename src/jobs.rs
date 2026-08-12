@@ -20,6 +20,31 @@ pub struct Job {
     pub child: Child,
 }
 
+impl JobState {
+    fn as_str(&self) -> &str {
+        match self {
+            JobState::Done => "Done",
+            JobState::Running => "Running",
+        }
+    }
+}
+
+impl Job {
+    fn orig(& self) -> &str {
+        match self.state {
+            JobState::Done => &self.origin[..self.origin.len()-1],
+            JobState::Running => &self.origin,
+        }
+    }
+}
+
+fn job_marker<'a>(i: usize, len: usize) -> &'a str {
+    match i {
+        x if x == len-1 => "+",
+        x if x == len-2 => "-",
+        _ => " ",
+    }
+}
 
 pub fn reap_jobs(jobs: &mut Vec<Job>) {
     if jobs.is_empty() {
@@ -32,13 +57,14 @@ pub fn reap_jobs(jobs: &mut Vec<Job>) {
             _ => (),
         };
         if job.state == JobState::Done {
-            let marker = match i {
-                x if x == len-1 => "+",
-                x if x == len-2 => "-",
-                _ => " ",
-            };
-            let origin = &job.origin[..job.origin.len()-1];
-            writeln!(stdout(), "[{}]{}  {:<24}{}", job.id, marker, "Done", origin).unwrap();
+            writeln!(
+                stdout(),
+                "[{}]{}  {:<24}{}",
+                job.id,
+                job_marker(i, len),
+                "Done",
+                job.orig()
+            ).unwrap();
         }
     }
     jobs.retain(|job| job.state != JobState::Done);
@@ -55,20 +81,14 @@ pub fn jobs_cmd(jobs: &mut Vec<Job>, mut buffers: Buffers) {
             Ok(Some(_)) => job.state = JobState::Done,
             _ => (),
         };
-        let marker = match i {
-            x if x == len-1 => "+",
-            x if x == len-2 => "-",
-            _ => " ",
-        };
-        let state = match job.state {
-            JobState::Done => "Done",
-            JobState::Running => "Running",
-        };
-        let origin = match job.state {
-            JobState::Done => &job.origin[..job.origin.len()-1],
-            JobState::Running => &job.origin,
-        };
-        writeln!(buffers.out(), "[{}]{}  {:<24}{}", job.id, marker, state, origin).unwrap();
+        writeln!(
+            buffers.out(),
+            "[{}]{}  {:<24}{}",
+            job.id,
+            job_marker(i, len),
+            job.state.as_str(),
+            job.orig()
+        ).unwrap();
     }
     jobs.retain(|job| job.state != JobState::Done);
 }
