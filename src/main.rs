@@ -248,6 +248,20 @@ fn redirect_err(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
     }
 }
 
+fn redirect_in(input: &mut Vec<String>) -> Option<String> {
+    let index = input.iter().position(|x| {
+        matches!(x.as_str(), "<")
+    })?;
+
+    if index + 1 < input.len() {
+        input.remove(index);
+        let path = input.remove(index);
+        Some(path)
+    } else {
+        None
+    }
+}
+
 fn get_buffers(args: &mut Vec<String>) -> Buffers {
     let out: Option<File>;
     if let Some(redirect) = redirect_out(args) {
@@ -279,9 +293,19 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
         err = None;
     }
 
+
+    let in_buffer: BufferInput;
+    if let Some(path) = redirect_in(args) {
+        let file = File::open(&path)
+            .unwrap_or_else(|err| panic!("cannot open {}: {err}", &path));
+        in_buffer = BufferInput::File(file);
+    } else {
+        in_buffer = BufferInput::Inherit;
+    }
+
     Buffers {
         out_file: out,
         err_file: err,
-        in_buffer: BufferInput::Inherit,
+        in_buffer,
     }
 }
