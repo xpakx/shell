@@ -1,9 +1,9 @@
 use core::{cell::RefCell, writeln};
-use std::{collections::HashMap, fs::File, io::{self, Write}, process::{Stdio, exit}};
+use std::{collections::HashMap, fs::File, io::{self, Write}, process::{CommandArgs, Stdio, exit}};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
-use std::process::Command;
+use std::process::{Command, ChildStdout};
 use rustyline::{self, history::DefaultHistory};
 use std::rc::Rc;
 
@@ -52,7 +52,9 @@ fn eval(
 ) {
     match &command.cmd {
         Cmd::Builtin(cmd) => run_builtin(cmd, command, buffers, completions, jobs),
-        Cmd::External(cmd) => run_external(cmd, command, buffers, jobs),
+        Cmd::External(cmd) => {
+            run_external(cmd, command, buffers, jobs);
+        },
         Cmd::Unknown(name) => println!("{}: command not found", name),
     }
 }
@@ -118,47 +120,61 @@ fn run_external(
     command: &CommandLine,
     buffers: Buffers,
     jobs: &mut Vec<Job>,
-) {
+) -> Option<ChildStdout> {
     let mut cmd = Command::new(cmd_type.name.to_string());
     if !command.tokens.is_empty() {
         cmd.args(&command.tokens);
     }
+
+    match buffers.in_buffer {
+        BufferInput::Inherit => cmd.stdin(Stdio::inherit()),
+        BufferInput::File(file) => cmd.stdin(Stdio::from(file)), // TODO: input redir
+        BufferInput::Piped(pipe) => cmd.stdin(Stdio::from(pipe)), // TODO: pipes
+    };
+
     if command.run_in_bg {
-        cmd.stdin(Stdio::inherit());
         cmd.stdout(Stdio::inherit());
         cmd.stderr(Stdio::inherit());
-        // TODO: redirects
-        // TODO: better job num
         let child = cmd.spawn().unwrap();
         add_job(jobs, child, cmd_type.name.clone(), command.origin.clone());
+        None
     } else {
+        let should_pipe = command.has_next_in_pipeline && buffers.out_file.is_none();
+        if should_pipe {
+            cmd.stdout(Stdio::piped());
+        } else {
+            match buffers.out_file {
+                Option::Some(file) => cmd.stdout(Stdio::from(file)),
+                Option::None => cmd.stdout(Stdio::inherit()),
+            };
+        }
 
-        match buffers.out_file {
-            Option::Some(file) => {
-                cmd.stdout(Stdio::from(file));
-            },
-            Option::None => {
-                cmd.stdout(Stdio::inherit());
-            }
-        };
         match buffers.err_file {
-            Option::Some(file) => {
-                cmd.stderr(Stdio::from(file));
-            },
-            Option::None => {
-                cmd.stderr(Stdio::inherit());
-            }
+            Option::Some(file) => cmd.stderr(Stdio::from(file)),
+            Option::None => cmd.stderr(Stdio::inherit()),
         };
 
         let mut child = cmd.spawn().unwrap();
-        child.wait().unwrap();
+        let stdout_pipe = if should_pipe {
+            child.stdout.take()
+        } else {
+            child.wait().unwrap();
+            None
+        };
+        stdout_pipe
     }
 }
 
+enum BufferInput {
+    Inherit,
+    File(std::fs::File),
+    Piped(ChildStdout),
+}
 
 struct Buffers {
     out_file: Option<File>,
     err_file: Option<File>,
+    in_buffer: BufferInput,
 }
 
 impl Buffers {
@@ -261,5 +277,9 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
         err = None;
     }
 
-    Buffers {out_file: out, err_file: err}
+    Buffers {
+        out_file: out,
+        err_file: err,
+        in_buffer: BufferInput::Inherit,
+    }
 }

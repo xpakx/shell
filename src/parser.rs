@@ -16,6 +16,7 @@ pub struct CommandLine {
     pub tokens: Vec<String>,
     pub origin: String,
     pub run_in_bg: bool,
+    pub has_next_in_pipeline: bool,
 }
 
 impl CommandLine {
@@ -27,6 +28,7 @@ impl CommandLine {
                 tokens,
                 run_in_bg: false,
                 origin: String::from(origin),
+                has_next_in_pipeline: false,
             }
         }
 
@@ -37,6 +39,7 @@ impl CommandLine {
             tokens,
             run_in_bg: false,
             origin: String::from(origin),
+            has_next_in_pipeline: false,
         }
     }
 
