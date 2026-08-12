@@ -72,3 +72,18 @@ pub fn jobs_cmd(jobs: &mut Vec<Job>, mut buffers: Buffers) {
     }
     jobs.retain(|job| job.state != JobState::Done);
 }
+
+pub fn add_job(jobs: &mut Vec<Job>, child: Child, name: String, origin: String) {
+        let pid = child.id();
+        // TODO: better job num
+        let id = jobs.last().map_or(0, |job| job.id) + 1;
+        println!("[{id}] {pid}");
+        jobs.push(Job {
+            id: id,
+            name,
+            origin,
+            pid: pid,
+            state: JobState::Running,
+            child,
+        });
+}

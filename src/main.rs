@@ -14,7 +14,7 @@ mod parser;
 use parser::{parse_command, Cmd, Builtin, Executable, CommandLine};
 
 mod jobs;
-use jobs::{Job, JobState, reap_jobs, jobs_cmd};
+use jobs::{Job, reap_jobs, jobs_cmd, add_job};
 
 fn main() {
     let rl_config = rustyline::Config::builder()
@@ -130,17 +130,7 @@ fn run_external(
         // TODO: redirects
         // TODO: better job num
         let child = cmd.spawn().unwrap();
-        let pid = child.id();
-        let id = jobs.last().map_or(0, |job| job.id) + 1;
-        println!("[{id}] {pid}");
-        jobs.push(Job {
-            id: id,
-            name: cmd_type.name.clone(),
-            origin: command.origin.clone(),
-            pid: pid,
-            state: JobState::Running,
-            child,
-        });
+        add_job(jobs, child, cmd_type.name.clone(), command.origin.clone());
     } else {
 
         match buffers.out_file {
