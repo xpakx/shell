@@ -75,8 +75,10 @@ pub fn jobs_cmd(jobs: &mut Vec<Job>, mut buffers: Buffers) {
 
 pub fn add_job(jobs: &mut Vec<Job>, child: Child, name: String, origin: String) {
         let pid = child.id();
-        // TODO: better job num
-        let id = jobs.last().map_or(0, |job| job.id) + 1;
+        let id = jobs
+            .iter()
+            .max_by_key(|job| job.id)
+            .map_or(0, |job| job.id) + 1;
         println!("[{id}] {pid}");
         jobs.push(Job {
             id: id,
