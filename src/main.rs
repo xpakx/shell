@@ -1,5 +1,5 @@
 use core::{cell::RefCell, writeln};
-use std::{collections::HashMap, fs::File, io::{self, Write}, process::{CommandArgs, Stdio, exit}};
+use std::{collections::HashMap, fs::File, io::{self, Write}, process::{Stdio, exit}};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
@@ -128,7 +128,7 @@ fn run_external(
 
     match buffers.in_buffer {
         BufferInput::Inherit => cmd.stdin(Stdio::inherit()),
-        BufferInput::File(file) => cmd.stdin(Stdio::from(file)), // TODO: input redir
+        BufferInput::File(file) => cmd.stdin(Stdio::from(file)),
         BufferInput::Piped(pipe) => cmd.stdin(Stdio::from(pipe)), // TODO: pipes
     };
 
@@ -250,7 +250,7 @@ fn redirect_err(input: &mut Vec<String>) -> Option<(RedirectMode, String)> {
 
 fn redirect_in(input: &mut Vec<String>) -> Option<String> {
     let index = input.iter().position(|x| {
-        matches!(x.as_str(), "<")
+        matches!(x.as_str(), "<" | "0<")
     })?;
 
     if index + 1 < input.len() {

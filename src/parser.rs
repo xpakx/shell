@@ -116,6 +116,22 @@ pub fn parse_command(command: &str) -> CommandLine {
                     args.push(arg);
                     arg = String::with_capacity(command.len());
                 },
+                '<' => {
+                    let have_io_number =  arg == "0";
+                    if !have_io_number && !arg.is_empty() {
+                        args.push(arg);
+                        arg = String::with_capacity(command.len());
+                    }
+                    arg.push(c);
+                    if let Some(&next) = chars.peek() {
+                        if next == '<' {
+                            chars.next();
+                            arg.push(c);
+                        }
+                    }
+                    args.push(arg);
+                    arg = String::with_capacity(command.len());
+                },
                 _ => arg.push(c),
             },
             ParseMode::SingleQuote => match c {
