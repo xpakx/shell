@@ -37,7 +37,7 @@ fn main() {
             for mut cmd_line in cmds {
                 let buffers = get_buffers(&mut cmd_line.tokens, pipe, cmd_line.has_next_in_pipeline);
                 cmd_line.enable_bg();
-                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs, &rl.history());
+                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs, &mut rl.history_mut());
             }
         }
         reap_jobs(&mut jobs);
@@ -64,7 +64,7 @@ fn eval(
     mut buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
-    history: &DefaultHistory,
+    history: &mut DefaultHistory,
 ) -> EvalResult  {
     match &command.cmd {
         Cmd::Builtin(cmd) => {
@@ -91,7 +91,7 @@ fn run_builtin(
     buffers: &mut Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
-    history: &DefaultHistory,
+    history: &mut DefaultHistory,
 ) {
     match cmd {
             Builtin::Exit => exit(0),
@@ -148,6 +148,24 @@ fn run_builtin(
                         }
                         return
                     }
+                }
+                let r = command.find_flag("-r");
+                if let Some(file) = r {
+                    _ = history.load(Path::new(file));
+                    return
+                    
+                }
+                let w = command.find_flag("-w");
+                if let Some(file) = w {
+                    _ = history.save(Path::new(file));
+                    return
+                    
+                }
+                let a = command.find_flag("-a");
+                if let Some(file) = a {
+                    _ = history.append(Path::new(file));
+                    return
+                    
                 }
                 for (idx, entry) in history.iter().enumerate() {
                     println!("    {}  {}", idx + 1, entry);
