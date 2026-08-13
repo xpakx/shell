@@ -27,6 +27,7 @@ fn main() {
 
     loop {
         let command = get_command(&mut rl);
+        rl.add_history_entry(command.trim()).unwrap();
         let cmd_line = parse_command(&command);
         let cmds = split_commands(cmd_line, &command);
         if cmds.is_empty() {
@@ -36,7 +37,7 @@ fn main() {
             for mut cmd_line in cmds {
                 let buffers = get_buffers(&mut cmd_line.tokens, pipe, cmd_line.has_next_in_pipeline);
                 cmd_line.enable_bg();
-                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
+                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs, &rl.history());
             }
         }
         reap_jobs(&mut jobs);
@@ -63,10 +64,11 @@ fn eval(
     mut buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
+    history: &DefaultHistory,
 ) -> EvalResult  {
     match &command.cmd {
         Cmd::Builtin(cmd) => {
-            run_builtin(cmd, command, &mut buffers, completions, jobs);
+            run_builtin(cmd, command, &mut buffers, completions, jobs, history);
             return match buffers.out_bytes {
                 Option::None => EvalResult::Empty,
                 Option::Some(bytes) => EvalResult::Bytes(bytes),
@@ -89,6 +91,7 @@ fn run_builtin(
     buffers: &mut Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
+    history: &DefaultHistory,
 ) {
     match cmd {
             Builtin::Exit => exit(0),
@@ -135,6 +138,11 @@ fn run_builtin(
                 }
             },
             Builtin::Jobs => jobs_cmd(jobs, buffers),
+            Builtin::History => {
+                for (idx, entry) in history.iter().enumerate() {
+                    println!("    {}  {}", idx + 1, entry);
+                }
+            },
     }
 }
 

@@ -202,6 +202,7 @@ pub enum Builtin {
     Cd,
     Complete,
     Jobs,
+    History,
 }
 
 pub struct Executable {
@@ -219,6 +220,7 @@ impl Cmd {
             "cd" => Cmd::Builtin(Builtin::Cd),
             "complete" => Cmd::Builtin(Builtin::Complete),
             "jobs" => Cmd::Builtin(Builtin::Jobs),
+            "history" => Cmd::Builtin(Builtin::History),
             _ => match cmd_from_path(command) {
                 Option::None => Cmd::Unknown(command.to_string()),
                 Some(data) => Cmd::External(data),
