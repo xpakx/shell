@@ -32,7 +32,7 @@ fn main() {
         if cmds.is_empty() {
             writeln!(stdout(), "").unwrap();
         } else {
-            let mut pipe = None;
+            let mut pipe = EvalResult::Empty;
             for mut cmd_line in cmds {
                 let buffers = get_buffers(&mut cmd_line.tokens, pipe, cmd_line.has_next_in_pipeline);
                 cmd_line.enable_bg();
@@ -52,26 +52,41 @@ fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> Str
     }
 }
 
+enum EvalResult {
+    Empty,
+    Child(ChildStdout),
+    Bytes(Vec<u8>),
+}
+
 fn eval(
     command: &CommandLine,
-    buffers: Buffers,
+    mut buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
-) -> Option<ChildStdout>  {
+) -> EvalResult  {
     match &command.cmd {
-        Cmd::Builtin(cmd) => run_builtin(cmd, command, buffers, completions, jobs),
+        Cmd::Builtin(cmd) => {
+            run_builtin(cmd, command, &mut buffers, completions, jobs);
+            return match buffers.out_bytes {
+                Option::None => EvalResult::Empty,
+                Option::Some(bytes) => EvalResult::Bytes(bytes),
+            }
+        }
         Cmd::External(cmd) => {
-            return run_external(cmd, command, buffers, jobs);
+            return match run_external(cmd, command, buffers, jobs) {
+                Option::None => EvalResult::Empty,
+                Option::Some(child) => EvalResult::Child(child),
+            }
         },
         Cmd::Unknown(name) => println!("{}: command not found", name),
     };
-    None
+    EvalResult::Empty
 }
 
 fn run_builtin(
     cmd: &Builtin,
     command: &CommandLine,
-    mut buffers: Buffers,
+    buffers: &mut Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
 ) {
@@ -135,10 +150,16 @@ fn run_external(
         cmd.args(&command.tokens);
     }
 
+    let mut bytes_to_write = None;
+
     match buffers.in_buffer {
         BufferInput::Inherit => cmd.stdin(Stdio::inherit()),
         BufferInput::File(file) => cmd.stdin(Stdio::from(file)),
-        BufferInput::Piped(pipe) => cmd.stdin(Stdio::from(pipe)), // TODO: pipes
+        BufferInput::Piped(pipe) => cmd.stdin(Stdio::from(pipe)),
+        BufferInput::Bytes(bytes) => {
+            bytes_to_write = Some(bytes);
+            cmd.stdin(Stdio::piped())
+        }
     };
 
     if command.run_in_bg { // TODO: for now we assume this could only end chain
@@ -165,6 +186,12 @@ fn run_external(
     };
 
     let mut child = cmd.spawn().unwrap();
+    if let Some(bytes) = bytes_to_write {
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(&bytes).unwrap();
+        }
+    }
+
     let stdout_pipe = match should_pipe {
         true => child.stdout.take(),
         false => {
@@ -180,6 +207,7 @@ enum BufferInput {
     Inherit,
     File(std::fs::File),
     Piped(ChildStdout),
+    Bytes(Vec<u8>),
 }
 
 struct Buffers {
@@ -275,7 +303,7 @@ fn redirect_in(input: &mut Vec<String>) -> Option<String> {
     }
 }
 
-fn get_buffers(args: &mut Vec<String>, pipe: Option<ChildStdout>, has_next: bool) -> Buffers {
+fn get_buffers(args: &mut Vec<String>, pipe: EvalResult, has_next: bool) -> Buffers {
     let out: Option<File>;
     if let Some(redirect) = redirect_out(args) {
         let mut opts = OpenOptions::new();
@@ -313,10 +341,10 @@ fn get_buffers(args: &mut Vec<String>, pipe: Option<ChildStdout>, has_next: bool
             .unwrap_or_else(|err| panic!("cannot open {}: {err}", &path));
         in_buffer = BufferInput::File(file);
     } else {
-        if let Some(child) = pipe {
-            in_buffer = BufferInput::Piped(child);
-        } else {
-            in_buffer = BufferInput::Inherit;
+        in_buffer = match pipe {
+            EvalResult::Child(child) => BufferInput::Piped(child),
+            EvalResult::Bytes(bytes) => BufferInput::Bytes(bytes),
+            EvalResult::Empty => BufferInput::Inherit
         }
     }
 

@@ -70,7 +70,7 @@ pub fn reap_jobs(jobs: &mut Vec<Job>) {
     jobs.retain(|job| job.state != JobState::Done);
 }
 
-pub fn jobs_cmd(jobs: &mut Vec<Job>, mut buffers: Buffers) {
+pub fn jobs_cmd(jobs: &mut Vec<Job>, buffers: &mut Buffers) {
     if jobs.is_empty() {
         return;
     }
