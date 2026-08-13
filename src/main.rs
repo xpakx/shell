@@ -190,14 +190,20 @@ fn run_builtin(
                 if let Some(variable) = p {
                     match env::var(variable) {
                         Err(_) => writeln!(buffers.out(), "declare: {}: not found", variable).unwrap(),
-                        Ok(res) => writeln!(buffers.out(), "declare -- {}={}", variable, res).unwrap(),
+                        Ok(res) => writeln!(buffers.out(), "declare -- {}=\"{}\"", variable, res).unwrap(),
                     }
                     if let Ok(var) = env::var(variable) {
                         if !var.is_empty() {
                         }
                     };
                     return
-                    
+                }
+                for arg in &command.tokens {
+                    if let Some((var, val)) = arg.split_once("=") {
+                        unsafe {
+                            env::set_var(var, val);
+                        }
+                    }
                 }
             },
     }
