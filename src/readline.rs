@@ -149,7 +149,7 @@ impl CommandHelper {
 
 
 fn prepare_commands(path: &str) -> Vec<String> {
-    let mut commands: Vec<String> = vec!["echo", "exit", "type", "pwd", "cd", "complete"]
+    let mut commands: Vec<String> = vec!["echo", "exit", "type", "pwd", "cd", "complete", "history", "declare"]
         .into_iter()
         .map(String::from)
         .collect();

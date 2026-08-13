@@ -185,6 +185,21 @@ fn run_builtin(
                     println!("    {}  {}", idx + 1, entry);
                 }
             },
+            Builtin::Declare => {
+                let p = command.find_flag("-p");
+                if let Some(variable) = p {
+                    match env::var(variable) {
+                        Err(_) => writeln!(buffers.out(), "declare: {}: not found", variable).unwrap(),
+                        Ok(res) => writeln!(buffers.out(), "declare -- {}={}", variable, res).unwrap(),
+                    }
+                    if let Ok(var) = env::var(variable) {
+                        if !var.is_empty() {
+                        }
+                    };
+                    return
+                    
+                }
+            },
     }
 }
 
