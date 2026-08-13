@@ -34,7 +34,7 @@ fn main() {
         } else {
             let mut pipe = None;
             for mut cmd_line in cmds {
-                let buffers = get_buffers(&mut cmd_line.tokens, pipe);
+                let buffers = get_buffers(&mut cmd_line.tokens, pipe, cmd_line.has_next_in_pipeline);
                 cmd_line.enable_bg();
                 pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
             }
@@ -186,13 +186,17 @@ struct Buffers {
     out_file: Option<File>,
     err_file: Option<File>,
     in_buffer: BufferInput,
+    out_bytes: Option<Vec<u8>>,
 }
 
 impl Buffers {
     pub fn out(&mut self) -> Box<dyn Write + '_> {
         match &mut self.out_file {
             Option::Some(file) => Box::new(file),
-            Option::None => Box::new(io::stdout().lock()),
+            Option::None => match &mut self.out_bytes {
+                Option::Some(bytes) => Box::new(bytes),
+                Option::None => Box::new(io::stdout().lock()),
+            }
         }
     }
 
@@ -271,7 +275,7 @@ fn redirect_in(input: &mut Vec<String>) -> Option<String> {
     }
 }
 
-fn get_buffers(args: &mut Vec<String>, pipe: Option<ChildStdout>) -> Buffers {
+fn get_buffers(args: &mut Vec<String>, pipe: Option<ChildStdout>, has_next: bool) -> Buffers {
     let out: Option<File>;
     if let Some(redirect) = redirect_out(args) {
         let mut opts = OpenOptions::new();
@@ -316,9 +320,16 @@ fn get_buffers(args: &mut Vec<String>, pipe: Option<ChildStdout>) -> Buffers {
         }
     }
 
+    let out_bytes = if has_next & out.is_none() {
+        Some(Vec::new())
+    } else {
+        None
+    };
+
     Buffers {
         out_file: out,
         err_file: err,
         in_buffer,
+        out_bytes,
     }
 }
