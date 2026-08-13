@@ -6,6 +6,7 @@ use std::fs::OpenOptions;
 use std::process::{Command, ChildStdout};
 use rustyline::{self, history::{History, DefaultHistory}};
 use std::rc::Rc;
+use regex::regex;
 
 mod readline;
 use readline::CommandHelper;
@@ -192,16 +193,17 @@ fn run_builtin(
                         Err(_) => writeln!(buffers.out(), "declare: {}: not found", variable).unwrap(),
                         Ok(res) => writeln!(buffers.out(), "declare -- {}=\"{}\"", variable, res).unwrap(),
                     }
-                    if let Ok(var) = env::var(variable) {
-                        if !var.is_empty() {
-                        }
-                    };
                     return
                 }
+                let re = regex!(r"^[a-zA-Z_]\w*$");
                 for arg in &command.tokens {
                     if let Some((var, val)) = arg.split_once("=") {
-                        unsafe {
-                            env::set_var(var, val);
+                        if re.is_match(var) {
+                            unsafe {
+                                env::set_var(var, val);
+                            }
+                        } else {
+                            writeln!(buffers.err(), "declare: '{}={}': not a valid identifier", var, val).unwrap();
                         }
                     }
                 }
