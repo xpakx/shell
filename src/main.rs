@@ -4,7 +4,7 @@ use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
 use std::process::{Command, ChildStdout};
-use rustyline::{self, history::DefaultHistory};
+use rustyline::{self, history::{History, DefaultHistory}};
 use std::rc::Rc;
 
 mod readline;
@@ -139,6 +139,16 @@ fn run_builtin(
             },
             Builtin::Jobs => jobs_cmd(jobs, buffers),
             Builtin::History => {
+                if let Some(arg) = command.tokens.get(0) {
+                    if let Ok(num) = arg.parse::<usize>() {
+                        let len = history.len();
+                        let skip_count = len.saturating_sub(num);
+                        for (idx, entry) in history.iter().skip(skip_count).enumerate() {
+                            println!("    {}  {}", idx + skip_count + 1, entry);
+                        }
+                        return
+                    }
+                }
                 for (idx, entry) in history.iter().enumerate() {
                     println!("    {}  {}", idx + 1, entry);
                 }
