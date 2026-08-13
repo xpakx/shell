@@ -1,5 +1,5 @@
 use core::{cell::RefCell, writeln};
-use std::{collections::HashMap, fs::File, io::{self, Write}, process::{Stdio, exit}};
+use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, process::{Stdio, exit}};
 use std::path::Path;
 use std::env;
 use std::fs::OpenOptions;
@@ -11,7 +11,7 @@ mod readline;
 use readline::CommandHelper;
 
 mod parser;
-use parser::{parse_command, Cmd, Builtin, Executable, CommandLine};
+use parser::{parse_command, split_commands, Cmd, Builtin, Executable, CommandLine};
 
 mod jobs;
 use jobs::{Job, reap_jobs, jobs_cmd, add_job};
@@ -27,10 +27,16 @@ fn main() {
 
     loop {
         let command = get_command(&mut rl);
-        let mut cmd_line = parse_command(&command);
-        let buffers = get_buffers(&mut cmd_line.tokens);
-        cmd_line.enable_bg();
-        eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
+        let cmd_line = parse_command(&command);
+        let mut cmds = split_commands(cmd_line, &command);
+        if cmds.is_empty() {
+            writeln!(stdout(), "").unwrap();
+        } else {
+            let mut cmd_line = cmds.remove(0);
+            let buffers = get_buffers(&mut cmd_line.tokens);
+            cmd_line.enable_bg();
+            eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
+        }
         reap_jobs(&mut jobs);
         // println!("{:?}", &args);
     }

@@ -70,15 +70,39 @@ impl CommandLine {
     }
 }
 
+pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
+    let mut cmds: Vec<CommandLine> = Vec::new();
+    let mut origs = command.split('|');
+    let mut curr: Vec<String> = Vec::new();
+    for token in tokens.iter() {
+        if token == "|" {
+            if !curr.is_empty() {
+                let orig = origs.next().unwrap_or("");
+                let cmd = CommandLine::new(curr, orig);
+                cmds.push(cmd);
+                curr = Vec::new();
+            }
+        } else {
+            curr.push(token.clone());
+        }
+    }
+    if !curr.is_empty() {
+        let orig = origs.next().unwrap_or("");
+        let cmd = CommandLine::new(curr, orig);
+        cmds.push(cmd);
+    }
+    cmds
+}
 
-pub fn parse_command(command: &str) -> CommandLine {
+
+pub fn parse_command(command: &str) -> Vec<String> {
     let home = std::env::home_dir()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_default();
 
     let mut args: Vec<String> = Vec::new();
     let mut last = ' ';
-    let mut arg = String::with_capacity(command.len());
+    let mut arg = String::new();
     let mut chars = command.trim().chars().peekable();
     let mut mode = ParseMode::Normal;
 
@@ -104,7 +128,7 @@ pub fn parse_command(command: &str) -> CommandLine {
                     let have_io_number =  arg == "1" || arg == "2";
                     if !have_io_number && !arg.is_empty() {
                         args.push(arg);
-                        arg = String::with_capacity(command.len());
+                        arg = String::new();
                     }
                     arg.push(c);
                     if let Some(&next) = chars.peek() {
@@ -114,13 +138,13 @@ pub fn parse_command(command: &str) -> CommandLine {
                         }
                     }
                     args.push(arg);
-                    arg = String::with_capacity(command.len());
+                    arg = String::new();
                 },
                 '<' => {
                     let have_io_number =  arg == "0";
                     if !have_io_number && !arg.is_empty() {
                         args.push(arg);
-                        arg = String::with_capacity(command.len());
+                        arg = String::new();
                     }
                     arg.push(c);
                     if let Some(&next) = chars.peek() {
@@ -130,16 +154,16 @@ pub fn parse_command(command: &str) -> CommandLine {
                         }
                     }
                     args.push(arg);
-                    arg = String::with_capacity(command.len());
+                    arg = String::new();
                 },
                 '|' => {
                     if !arg.is_empty() {
                         args.push(arg);
-                        arg = String::with_capacity(command.len());
+                        arg = String::new();
                     }
                     arg.push(c);
                     args.push(arg);
-                    arg = String::with_capacity(command.len());
+                    arg = String::new();
                 },
                 _ => arg.push(c),
             },
@@ -160,7 +184,7 @@ pub fn parse_command(command: &str) -> CommandLine {
     if arg != "" {
         args.push(arg);
     }
-    CommandLine::new(args, command)
+    args
 }
 
 
