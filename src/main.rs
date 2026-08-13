@@ -1,4 +1,4 @@
-use core::{cell::RefCell, option::Option, writeln};
+use core::{cell::RefCell, option::Option::{self, Some}, writeln};
 use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, process::{Stdio, exit}};
 use std::path::Path;
 use std::env;
@@ -25,6 +25,12 @@ fn main() {
     rl.set_helper(Some(CommandHelper::new(Rc::clone(&completions))));
     let mut jobs: Vec<Job> = Vec::new();
 
+    if let Ok(var) = env::var("HISTFILE") {
+        if !var.is_empty() {
+            _ = rl.history_mut().load(Path::new(&var));
+        }
+    };
+
     loop {
         let command = get_command(&mut rl);
         rl.add_history_entry(command.trim()).unwrap();
@@ -42,7 +48,7 @@ fn main() {
         }
         reap_jobs(&mut jobs);
         // println!("{:?}", &args);
-    }
+    };
 }
 
 fn get_command(rl: &mut rustyline::Editor<CommandHelper, DefaultHistory>) -> String {
@@ -94,7 +100,15 @@ fn run_builtin(
     history: &mut DefaultHistory,
 ) {
     match cmd {
-            Builtin::Exit => exit(0),
+            Builtin::Exit => {
+                // TODO: move that
+                if let Ok(var) = env::var("HISTFILE") {
+                    if !var.is_empty() {
+                        _ = history.append(Path::new(&var));
+                    }
+                };
+                exit(0);
+            },
             Builtin::Echo => {
                 let msg = command.tokens.join(" ");
                 writeln!(buffers.out(), "{}", msg).unwrap();
