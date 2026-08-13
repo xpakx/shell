@@ -20,7 +20,7 @@ pub struct CommandLine {
 }
 
 impl CommandLine {
-    pub fn new(mut tokens: Vec<String>, origin: &str) -> CommandLine {
+    pub fn new(mut tokens: Vec<String>, origin: &str, has_next: bool) -> CommandLine {
 
         if tokens.is_empty() {
             return CommandLine{
@@ -28,7 +28,7 @@ impl CommandLine {
                 tokens,
                 run_in_bg: false,
                 origin: String::from(origin),
-                has_next_in_pipeline: false,
+                has_next_in_pipeline: has_next,
             }
         }
 
@@ -39,7 +39,7 @@ impl CommandLine {
             tokens,
             run_in_bg: false,
             origin: String::from(origin),
-            has_next_in_pipeline: false,
+            has_next_in_pipeline: has_next,
         }
     }
 
@@ -78,7 +78,7 @@ pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
         if token == "|" {
             if !curr.is_empty() {
                 let orig = origs.next().unwrap_or("");
-                let cmd = CommandLine::new(curr, orig);
+                let cmd = CommandLine::new(curr, orig, true);
                 cmds.push(cmd);
                 curr = Vec::new();
             }
@@ -88,7 +88,7 @@ pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
     }
     if !curr.is_empty() {
         let orig = origs.next().unwrap_or("");
-        let cmd = CommandLine::new(curr, orig);
+        let cmd = CommandLine::new(curr, orig, false);
         cmds.push(cmd);
     }
     cmds

@@ -1,4 +1,4 @@
-use core::{cell::RefCell, writeln};
+use core::{cell::RefCell, option::Option, writeln};
 use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, process::{Stdio, exit}};
 use std::path::Path;
 use std::env;
@@ -28,14 +28,16 @@ fn main() {
     loop {
         let command = get_command(&mut rl);
         let cmd_line = parse_command(&command);
-        let mut cmds = split_commands(cmd_line, &command);
+        let cmds = split_commands(cmd_line, &command);
         if cmds.is_empty() {
             writeln!(stdout(), "").unwrap();
         } else {
-            let mut cmd_line = cmds.remove(0);
-            let buffers = get_buffers(&mut cmd_line.tokens);
-            cmd_line.enable_bg();
-            eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
+            let mut pipe = None;
+            for mut cmd_line in cmds {
+                let buffers = get_buffers(&mut cmd_line.tokens, pipe);
+                cmd_line.enable_bg();
+                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs);
+            }
         }
         reap_jobs(&mut jobs);
         // println!("{:?}", &args);
@@ -55,14 +57,15 @@ fn eval(
     buffers: Buffers,
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
-) {
+) -> Option<ChildStdout>  {
     match &command.cmd {
         Cmd::Builtin(cmd) => run_builtin(cmd, command, buffers, completions, jobs),
         Cmd::External(cmd) => {
-            run_external(cmd, command, buffers, jobs);
+            return run_external(cmd, command, buffers, jobs);
         },
         Cmd::Unknown(name) => println!("{}: command not found", name),
-    }
+    };
+    None
 }
 
 fn run_builtin(
@@ -268,7 +271,7 @@ fn redirect_in(input: &mut Vec<String>) -> Option<String> {
     }
 }
 
-fn get_buffers(args: &mut Vec<String>) -> Buffers {
+fn get_buffers(args: &mut Vec<String>, pipe: Option<ChildStdout>) -> Buffers {
     let out: Option<File>;
     if let Some(redirect) = redirect_out(args) {
         let mut opts = OpenOptions::new();
@@ -306,7 +309,11 @@ fn get_buffers(args: &mut Vec<String>) -> Buffers {
             .unwrap_or_else(|err| panic!("cannot open {}: {err}", &path));
         in_buffer = BufferInput::File(file);
     } else {
-        in_buffer = BufferInput::Inherit;
+        if let Some(child) = pipe {
+            in_buffer = BufferInput::Piped(child);
+        } else {
+            in_buffer = BufferInput::Inherit;
+        }
     }
 
     Buffers {
