@@ -132,6 +132,15 @@ pub fn parse_command(command: &str) -> CommandLine {
                     args.push(arg);
                     arg = String::with_capacity(command.len());
                 },
+                '|' => {
+                    if !arg.is_empty() {
+                        args.push(arg);
+                        arg = String::with_capacity(command.len());
+                    }
+                    arg.push(c);
+                    args.push(arg);
+                    arg = String::with_capacity(command.len());
+                },
                 _ => arg.push(c),
             },
             ParseMode::SingleQuote => match c {
