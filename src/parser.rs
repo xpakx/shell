@@ -102,16 +102,11 @@ pub fn expand_vars(tokens: &mut Vec<String>) {
             .map(|captures| {
                 let var = captures.get(1)
                     .or_else(|| captures.get(2));
-                if let Some(var) = var {
-                    let var = var.as_str();
-                    let v = match env::var(var) {
-                        Ok(val) => val,
-                        _ => String::new(),
-                    };
-                    (captures[0].to_string(), v)
-                } else {
-                    (captures[0].to_string(), String::new())
-                }
+                let val = match var {
+                    Some(var) => env::var(var.as_str()).unwrap_or_default(),
+                    Option::None => String::new()
+                };
+                (captures[0].to_string(), val)
             })
             .collect();
         for (val, var) in replace {
