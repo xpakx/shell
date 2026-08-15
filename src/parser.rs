@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::env;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use regex::regex;
 
 
 enum ParseMode {
@@ -94,6 +95,51 @@ pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
     cmds
 }
 
+pub fn expand_vars(tokens: &mut Vec<String>) {
+    // TODO: absolutely wrong way to do it
+    // to update after introducing proper tokenization
+    let re = regex!(r"\$[a-zA-Z_]\w*");
+    for token in tokens.iter_mut() {
+        let replace: Vec<(String, String)> = re.find_iter(token)
+            .map(|var| {
+                let var_name = &var.as_str()[1..];
+                let v = match env::var(var_name) {
+                    Ok(val) => val,
+                    _ => String::new(),
+                };
+                (String::from(var.as_str()), v)
+            })
+            .collect();
+        for (val, var) in replace {
+            *token = token.replace(&val, &var);
+        }
+    }
+
+    let re = regex!(r"\$\{[a-zA-Z_]\w*\}");
+    for token in tokens.iter_mut() {
+        let replace: Vec<(String, String)> = re.find_iter(token)
+            .map(|var| {
+                let var_name = &var.as_str();
+                let var_name = &var_name[2..var_name.len()-1];
+                let v = match env::var(var_name) {
+                    Ok(val) => val,
+                    _ => String::new(),
+                };
+                (String::from(var.as_str()), v)
+            })
+            .collect();
+        for (val, var) in replace {
+            *token = token.replace(&val, &var);
+        }
+    }
+
+    for token in tokens.iter_mut() {
+        *token = token.replace("${}", "");
+    }
+
+
+    tokens.retain(|token| !token.is_empty());
+}
 
 pub fn parse_command(command: &str) -> Vec<String> {
     let home = std::env::home_dir()

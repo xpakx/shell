@@ -17,6 +17,8 @@ use parser::{parse_command, split_commands, Cmd, Builtin, Executable, CommandLin
 mod jobs;
 use jobs::{Job, reap_jobs, jobs_cmd, add_job};
 
+use crate::parser::expand_vars;
+
 fn main() {
     let rl_config = rustyline::Config::builder()
         .completion_type(rustyline::CompletionType::List)
@@ -35,7 +37,8 @@ fn main() {
     loop {
         let command = get_command(&mut rl);
         rl.add_history_entry(command.trim()).unwrap();
-        let cmd_line = parse_command(&command);
+        let mut cmd_line = parse_command(&command);
+        expand_vars(&mut cmd_line);
         let cmds = split_commands(cmd_line, &command);
         if cmds.is_empty() {
             writeln!(stdout(), "").unwrap();
