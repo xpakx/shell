@@ -19,6 +19,9 @@ use jobs::{Job, reap_jobs, jobs_cmd, add_job};
 
 use crate::parser::expand_vars;
 
+mod env_custom;
+use env_custom::{Env, create_env};
+
 fn main() {
     let rl_config = rustyline::Config::builder()
         .completion_type(rustyline::CompletionType::List)
@@ -27,8 +30,9 @@ fn main() {
     let completions: Rc<RefCell<HashMap<String, String>>> =  Rc::new(RefCell::new(HashMap::new()));
     rl.set_helper(Some(CommandHelper::new(Rc::clone(&completions))));
     let mut jobs: Vec<Job> = Vec::new();
+    let mut env = create_env();
 
-    if let Ok(var) = env::var("HISTFILE") {
+    if let Some(var) = env.get("HISTFILE") {
         if !var.is_empty() {
             _ = rl.history_mut().load(Path::new(&var));
         }
@@ -38,7 +42,7 @@ fn main() {
         let command = get_command(&mut rl);
         rl.add_history_entry(command.trim()).unwrap();
         let mut cmd_line = parse_command(&command);
-        expand_vars(&mut cmd_line);
+        expand_vars(&mut cmd_line, &env);
         let cmds = split_commands(cmd_line, &command);
         if cmds.is_empty() {
             writeln!(stdout(), "").unwrap();
@@ -47,7 +51,7 @@ fn main() {
             for mut cmd_line in cmds {
                 let buffers = get_buffers(&mut cmd_line.tokens, pipe, cmd_line.has_next_in_pipeline);
                 cmd_line.enable_bg();
-                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs, &mut rl.history_mut());
+                pipe = eval(&cmd_line, buffers, Rc::clone(&completions), &mut jobs, &mut rl.history_mut(), &mut env);
             }
         }
         reap_jobs(&mut jobs);
@@ -75,10 +79,11 @@ fn eval(
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
     history: &mut DefaultHistory,
+    env: &mut Env,
 ) -> EvalResult  {
     match &command.cmd {
         Cmd::Builtin(cmd) => {
-            run_builtin(cmd, command, &mut buffers, completions, jobs, history);
+            run_builtin(cmd, command, &mut buffers, completions, jobs, history, env);
             return match buffers.out_bytes {
                 Option::None => EvalResult::Empty,
                 Option::Some(bytes) => EvalResult::Bytes(bytes),
@@ -102,11 +107,12 @@ fn run_builtin(
     completions: Rc<RefCell<HashMap<String, String>>>,
     jobs: &mut Vec<Job>,
     history: &mut DefaultHistory,
+    env: &mut Env,
 ) {
     match cmd {
             Builtin::Exit => {
                 // TODO: move that
-                if let Ok(var) = env::var("HISTFILE") {
+                if let Some(var) = env.get("HISTFILE") {
                     if !var.is_empty() {
                         _ = history.append(Path::new(&var));
                     }
@@ -192,9 +198,9 @@ fn run_builtin(
             Builtin::Declare => {
                 let p = command.find_flag("-p");
                 if let Some(variable) = p {
-                    match env::var(variable) {
-                        Err(_) => writeln!(buffers.out(), "declare: {}: not found", variable).unwrap(),
-                        Ok(res) => writeln!(buffers.out(), "declare -- {}=\"{}\"", variable, res).unwrap(),
+                    match env.get(variable) {
+                        Option::None => writeln!(buffers.out(), "declare: {}: not found", variable).unwrap(),
+                        Option::Some(res) => writeln!(buffers.out(), "declare -- {}=\"{}\"", variable, res).unwrap(),
                     }
                     return
                 }
@@ -202,9 +208,7 @@ fn run_builtin(
                 for arg in &command.tokens {
                     if let Some((var, val)) = arg.split_once("=") {
                         if re.is_match(var) {
-                            unsafe {
-                                env::set_var(var, val);
-                            }
+                            env.set_var(String::from(var), val);
                         } else {
                             writeln!(buffers.err(), "declare: '{}={}': not a valid identifier", var, val).unwrap();
                         }

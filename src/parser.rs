@@ -5,6 +5,8 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use regex::regex;
 
+use crate::env_custom::Env;
+
 
 enum ParseMode {
     Normal,
@@ -95,7 +97,7 @@ pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
     cmds
 }
 
-pub fn expand_vars(tokens: &mut Vec<String>) {
+pub fn expand_vars(tokens: &mut Vec<String>, env: &Env) {
     let re = regex!(r"\$(?:\{([a-zA-Z_]\w*)\}|([a-zA-Z_]\w*)|\{\})");
     for token in tokens.iter_mut() {
         let replace: Vec<(String, String)> = re.captures_iter(token)
@@ -103,7 +105,7 @@ pub fn expand_vars(tokens: &mut Vec<String>) {
                 let var = captures.get(1)
                     .or_else(|| captures.get(2));
                 let val = match var {
-                    Some(var) => env::var(var.as_str()).unwrap_or_default(),
+                    Some(var) => env.get(var.as_str()).unwrap_or_default(),
                     Option::None => String::new()
                 };
                 (captures[0].to_string(), val)
