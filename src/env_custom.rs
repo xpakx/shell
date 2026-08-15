@@ -27,4 +27,11 @@ impl Env {
     pub fn set_var(&mut self, key: String, value: &str) {
         self.vars.insert(key, String::from(value));
     }
+
+    pub fn home(&self) -> String {
+        // TODO: better fallback
+        self.vars.get("HOME")
+            .map(|v| String::from(v))
+            .unwrap_or(String::from("/"))
+    }
 }
