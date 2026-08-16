@@ -1,4 +1,4 @@
-use std::{collections::HashMap, process::Command};
+use std::{collections::HashMap, path::PathBuf, process::Command};
 
 struct EnvEntry {
     value: String,
@@ -71,5 +71,23 @@ impl Env {
         // }
 
         cmd.envs(exported_vars);
+    }
+
+    pub fn set_current_dir(&mut self, new_path: PathBuf) {
+        if let Some(current_pwd) = self.get("PWD") {
+            self.set_var(String::from("OLDPWD"), &current_pwd);
+        }
+
+        let new_pwd_str = new_path.to_string_lossy().to_string();
+        self.set_var(String::from("PWD"), &new_pwd_str);
+    }
+
+    pub fn get_current_dir(&self) -> Option<PathBuf> {
+        self.get("PWD").map(|p| PathBuf::from(p))
+    }
+
+    pub fn path(&self) -> String {
+        self.get("PATH")
+            .unwrap_or(String::from(""))
     }
 }
