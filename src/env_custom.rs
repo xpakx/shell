@@ -93,4 +93,9 @@ impl Env {
         self.get("PATH")
             .unwrap_or(String::from(""))
     }
+
+    pub fn update_after_command(&mut self, exit_code: i32) {
+        self.set_var(String::from("?"), &exit_code.to_string());
+    }
+
 }
