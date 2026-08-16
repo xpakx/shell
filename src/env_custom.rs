@@ -57,13 +57,18 @@ impl Env {
     }
 
     pub fn apply_to_command(&self, cmd: &mut Command) {
-        // cmd.env_clear(); // ????
+        cmd.env_clear(); // TODO
 
         let exported_vars: Vec<(&String, &String)> = self.vars
             .iter()
             .filter(|(_, entry)| entry.exported)
             .map(|(key, entry)| (key, &entry.value))
             .collect();
+
+        // TODO: we need to use our PWD correctly first
+        // if let Some(pwd_entry) = self.vars.get("PWD") {
+        //    cmd.current_dir(&pwd_entry.value);
+        // }
 
         cmd.envs(exported_vars);
     }

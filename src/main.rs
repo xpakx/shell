@@ -90,7 +90,7 @@ fn eval(
             }
         }
         Cmd::External(cmd) => {
-            return match run_external(cmd, command, buffers, jobs) {
+            return match run_external(cmd, command, buffers, jobs, env) {
                 Option::None => EvalResult::Empty,
                 Option::Some(child) => EvalResult::Child(child),
             }
@@ -224,11 +224,13 @@ fn run_external(
     command: &CommandLine,
     buffers: Buffers,
     jobs: &mut Vec<Job>,
+    env: &Env,
 ) -> Option<ChildStdout> {
     let mut cmd = Command::new(cmd_type.name.to_string());
     if !command.tokens.is_empty() {
         cmd.args(&command.tokens);
     }
+    env.apply_to_command(&mut cmd);
 
     let mut bytes_to_write = None;
 
