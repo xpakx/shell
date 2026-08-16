@@ -23,7 +23,7 @@ pub struct CommandLine {
 }
 
 impl CommandLine {
-    pub fn new(mut tokens: Vec<String>, origin: &str, has_next: bool) -> CommandLine {
+    pub fn new(mut tokens: Vec<String>, origin: &str, has_next: bool, path: &str) -> CommandLine {
 
         if tokens.is_empty() {
             return CommandLine{
@@ -36,7 +36,7 @@ impl CommandLine {
         }
 
         let command = tokens.remove(0);
-        let command = Cmd::resolve(&command);
+        let command = Cmd::resolve(&command, path);
         CommandLine {
             cmd: command,
             tokens,
@@ -73,7 +73,7 @@ impl CommandLine {
     }
 }
 
-pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
+pub fn split_commands(tokens: Vec<String>, command: &str, path: &str) -> Vec<CommandLine> {
     let mut cmds: Vec<CommandLine> = Vec::new();
     let mut origs = command.split('|');
     let mut curr: Vec<String> = Vec::new();
@@ -81,7 +81,7 @@ pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
         if token == "|" {
             if !curr.is_empty() {
                 let orig = origs.next().unwrap_or("");
-                let cmd = CommandLine::new(curr, orig, true);
+                let cmd = CommandLine::new(curr, orig, true, path);
                 cmds.push(cmd);
                 curr = Vec::new();
             }
@@ -91,7 +91,7 @@ pub fn split_commands(tokens: Vec<String>, command: &str) -> Vec<CommandLine> {
     }
     if !curr.is_empty() {
         let orig = origs.next().unwrap_or("");
-        let cmd = CommandLine::new(curr, orig, false);
+        let cmd = CommandLine::new(curr, orig, false, path);
         cmds.push(cmd);
     }
     cmds
@@ -232,7 +232,7 @@ pub struct Executable {
 }
 
 impl Cmd {
-    pub fn resolve(command: &str) -> Self {
+    pub fn resolve(command: &str, path: &str) -> Self {
         match command {
             "exit" => Cmd::Builtin(Builtin::Exit),
             "echo" => Cmd::Builtin(Builtin::Echo),
@@ -243,7 +243,7 @@ impl Cmd {
             "jobs" => Cmd::Builtin(Builtin::Jobs),
             "history" => Cmd::Builtin(Builtin::History),
             "declare" => Cmd::Builtin(Builtin::Declare),
-            _ => match cmd_from_path(command) {
+            _ => match cmd_from_path(command, path) {
                 Option::None => Cmd::Unknown(command.to_string()),
                 Some(data) => Cmd::External(data),
             }
@@ -251,8 +251,7 @@ impl Cmd {
     }
 }
 
-fn cmd_from_path(command: &str) -> Option<Executable> {
-    let path = env::var("PATH").unwrap();
+fn cmd_from_path(command: &str, path: &str) -> Option<Executable> {
     let mut paths = env::split_paths(&path);
     while let Some(path) = paths.next() {
         let full_path = path.join(&command);

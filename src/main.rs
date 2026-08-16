@@ -1,7 +1,6 @@
 use core::{cell::RefCell, option::Option::{self, Some}, writeln};
 use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, process::{Stdio, exit}};
 use std::path::Path;
-use std::env;
 use std::fs::OpenOptions;
 use std::process::{Command, ChildStdout};
 use rustyline::{self, history::{History, DefaultHistory}};
@@ -43,7 +42,7 @@ fn main() {
         rl.add_history_entry(command.trim()).unwrap();
         let mut cmd_line = parse_command(&command, &env.home());
         expand_vars(&mut cmd_line, &env);
-        let cmds = split_commands(cmd_line, &command);
+        let cmds = split_commands(cmd_line, &command, &env.path());
         if cmds.is_empty() {
             writeln!(stdout(), "").unwrap();
         } else {
@@ -125,20 +124,20 @@ fn run_builtin(
             },
             Builtin::Type => match command.tokens.is_empty() {
                 true => writeln!(buffers.out(), "").unwrap(),
-                false => match Cmd::resolve(&command.tokens[0]) {
+                false => match Cmd::resolve(&command.tokens[0], &env.path()) {
                     Cmd::Builtin(_) => writeln!(buffers.out(), "{} is a shell builtin", &command.tokens[0]).unwrap(),
                     Cmd::External(cmd) => writeln!(buffers.out(), "{} is {}", &cmd.name, &cmd.path.display()).unwrap(),
                     Cmd::Unknown(cmd) => writeln!(buffers.out(), "{} not found", &cmd).unwrap(),
                 },
             },
-            Builtin::Pwd => match env::current_dir() {
-                Ok(cwd) => writeln!(buffers.out(), "{}", cwd.to_str().unwrap()).unwrap(),
+            Builtin::Pwd => match env.current_dir() {
+                Some(cwd) => writeln!(buffers.out(), "{}", cwd.to_str().unwrap()).unwrap(),
                 _ => writeln!(buffers.err(), "should not happen").unwrap(),
             },
             Builtin::Cd => {
                 if !command.tokens.is_empty() {
                     let path = Path::new(&command.tokens[0]);
-                    if !path.is_dir() || !env::set_current_dir(path).is_ok() {
+                    if !path.is_dir() || !env.set_current_dir(path).is_ok() {
                         writeln!(buffers.err(), "cd: {}: No such file or directory", path.display()).unwrap();
                     }
                 }
