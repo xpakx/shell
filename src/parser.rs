@@ -119,11 +119,7 @@ pub fn expand_vars(tokens: &mut Vec<String>, env: &Env) {
     tokens.retain(|token| !token.is_empty());
 }
 
-pub fn parse_command(command: &str) -> Vec<String> {
-    let home = std::env::home_dir()
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_default();
-
+pub fn parse_command(command: &str, home: &str) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
     let mut last = ' ';
     let mut arg = String::new();

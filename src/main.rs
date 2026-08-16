@@ -41,7 +41,7 @@ fn main() {
     loop {
         let command = get_command(&mut rl);
         rl.add_history_entry(command.trim()).unwrap();
-        let mut cmd_line = parse_command(&command);
+        let mut cmd_line = parse_command(&command, &env.home());
         expand_vars(&mut cmd_line, &env);
         let cmds = split_commands(cmd_line, &command);
         if cmds.is_empty() {
