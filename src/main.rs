@@ -232,7 +232,7 @@ fn run_external(
     command: &CommandLine,
     buffers: Buffers,
     jobs: &mut Vec<Job>,
-    env: &Env,
+    env: &mut Env,
 ) -> Option<ChildStdout> {
     let mut cmd = Command::new(cmd_type.name.to_string());
     if !command.tokens.is_empty() {
@@ -285,7 +285,10 @@ fn run_external(
     let stdout_pipe = match should_pipe {
         true => child.stdout.take(),
         false => {
-            child.wait().unwrap();
+            let output = child.wait_with_output().unwrap();
+            if let Some(ret) = output.status.code() {
+                env.update_after_command(ret);
+            }
             None
         }
     };
