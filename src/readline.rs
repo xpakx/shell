@@ -1,9 +1,11 @@
 use core::cell::RefCell;
+use core::option::Option;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::process::Command;
 use std::rc::Rc;
 
@@ -17,6 +19,7 @@ use rustyline::{Context, Helper, Result};
 pub struct CommandHelper {
     commands: RefCell<Vec<String>>,
     path: RefCell<String>,
+    pwd: RefCell<Option<PathBuf>>,
     completions: Rc<RefCell<HashMap<String, String>>>,
 }
 
@@ -25,12 +28,17 @@ impl CommandHelper {
         CommandHelper { 
             commands: RefCell::new(Vec::new()),
             path: RefCell::new(String::new()),
+            pwd: RefCell::new(None),
             completions,
         }
     }
 
-    pub fn update_commands(&self) {
-        let path = env::var("PATH").unwrap();
+    pub fn update_pwd(&self, pwd: Option<PathBuf>) {
+        let mut old_pwd = self.pwd.borrow_mut();
+        *old_pwd = pwd;
+    }
+
+    pub fn update_commands(&self, path: String) {
         {
             let mut old_path = self.path.borrow_mut();
             if path == *old_path {
@@ -45,7 +53,6 @@ impl CommandHelper {
     }
 
     pub fn complete_command(&self, prefix: &str) -> Vec<String> {
-            self.update_commands();
             let mut matches = vec![];
             let commands = self.commands.borrow();
 
@@ -61,7 +68,8 @@ impl CommandHelper {
     pub fn complete_file(&self, path: &str, prefix: &str) -> Vec<String> {
             let mut matches = vec![];
 
-            let Ok(cwd) = env::current_dir() else {
+            let pwd = self.pwd.borrow();
+            let Some(cwd) = pwd.clone() else {
                 return matches
             };
 

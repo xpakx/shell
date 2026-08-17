@@ -36,10 +36,19 @@ fn main() {
             _ = rl.history_mut().load(Path::new(&var));
         }
     };
+    if let Some(helper) = rl.helper_mut() {
+        helper.update_commands(env.path());
+        helper.update_pwd(env.current_dir());
+    }
 
     loop {
+
         let command = get_command(&mut rl);
         rl.add_history_entry(command.trim()).unwrap();
+        if let Some(helper) = rl.helper_mut() {
+            helper.update_commands(env.path());
+            helper.update_pwd(env.current_dir());
+        }
         let mut cmd_line = parse_command(&command, &env.home());
         expand_vars(&mut cmd_line, &env);
         let cmds = split_commands(cmd_line, &command, &env.path());
