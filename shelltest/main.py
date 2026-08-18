@@ -1,7 +1,22 @@
 from unittest import TestCase, TestResult, TestLoader, TextTestRunner
+from functools import wraps
 import pexpect
 
 SHELL_PATH = "../target/debug/shell"
+
+
+def ensure_exceptions(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except pexpect.TIMEOUT:
+            print("timeout")
+            self.fail("timed out")
+        except pexpect.EOF:
+            print("eof")
+            self.fail("shell exited")
+    return wrapper
 
 
 class TestShellSuite(TestCase):
@@ -17,17 +32,11 @@ class TestShellSuite(TestCase):
         if self.shell.isalive():
             self.shell.terminate(force=True)
 
+    @ensure_exceptions
     def test_suite(self):
-        """Verify the suite starts shell"""
-        try:
-            self.shell.expect_exact("$ ")
-            print("Initial prompt detected")
-        except pexpect.TIMEOUT:
-            print("timeout")
-            self.fail("timed out")
-        except pexpect.EOF:
-            print("eof")
-            self.fail("shell exited")
+        """Verify the shell prints prompt upon starting"""
+        self.shell.expect_exact("$ ")
+        print("Initial prompt detected")
 
 
 class QuietTestResult(TestResult):
