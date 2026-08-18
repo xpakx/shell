@@ -1,5 +1,4 @@
-from unittest import TestCase
-from unittest import main as test_main
+from unittest import TestCase, TestResult, TestLoader, TextTestRunner
 import pexpect
 
 SHELL_PATH = "../target/debug/shell"
@@ -31,9 +30,25 @@ class TestShellSuite(TestCase):
             self.fail("shell exited")
 
 
+class QuietTestResult(TestResult):
+
+    def printErrors(self):
+        pass
+
+
+class QuietTestRunner(TextTestRunner):
+    def __init__(self):
+        super().__init__(verbosity=0)
+
+    def _makeResult(self):
+        return QuietTestResult(self.stream, self.descriptions, self.verbosity)
+
+
 def main():
     print("shell testing suite")
-    test_main()
+    runner = QuietTestRunner()
+    suite = TestLoader().loadTestsFromTestCase(TestShellSuite)
+    runner.run(suite)
 
 
 if __name__ == "__main__":
