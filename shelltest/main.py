@@ -1,9 +1,12 @@
 from unittest import TestCase, TestResult, TestLoader, TextTestRunner
-from functools import wraps
 from enum import IntEnum
 import pexpect
+import re
+from rich.console import Console
+from rich.panel import Panel
 
 SHELL_PATH = "../target/debug/shell"
+console = Console()
 
 
 class ExpectResult(IntEnum):
@@ -14,7 +17,8 @@ class ExpectResult(IntEnum):
 
 class TestShellSuite(TestCase):
     def setUp(self):
-        print(self._testMethodDoc)
+        console.print(f"\n[cyan]Running:[/cyan]: {self._testMethodName}")
+        console.print(f"=> [bold]{self._testMethodDoc}[/bold]")
         self.shell = pexpect.spawn(
                 SHELL_PATH,
                 encoding="utf-8",
@@ -29,14 +33,24 @@ class TestShellSuite(TestCase):
         index = self.shell.expect_exact([text, pexpect.TIMEOUT, pexpect.EOF])
         return ExpectResult(index)
 
+    def get_lines(self) -> list[str]:
+        output = self.shell.before
+        ansi_regex = re.compile(
+            r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]|\x1b\[\?[0-9]+[hl]"
+        )
+        clean_output = ansi_regex.sub("", output)
+        return clean_output.replace("\r", "").splitlines()
+
     def verify_result(self, result: ExpectResult, on_succes: str):
         if result == ExpectResult.SUCCESS:
-            print(on_succes)
+            console.print(f"  [green]{on_succes}[/green]")
         elif result == ExpectResult.TIMEOUT:
-            print("timeout")
+            console.print("  [red]timeout[/red]")
+            last_line = self.get_lines()[-1].strip()
+            console.print(f"  [red]Received: {last_line}[/red]")
             self.fail("timed out")
         elif result == ExpectResult.EOF:
-            print("eof")
+            console.print("  [red]eof[/red]")
             self.fail("shell exited")
 
     def test_initial_prompt(self):
@@ -66,7 +80,13 @@ class QuietTestRunner(TextTestRunner):
 
 
 def main():
-    print("shell testing suite")
+    console.print(
+        Panel.fit(
+            "[bold magenta]Shell Testing Suite[/bold magenta]",
+            border_style="magenta",
+            padding=(1, 4),
+        )
+    )
     runner = QuietTestRunner()
     suite = TestLoader().loadTestsFromTestCase(TestShellSuite)
     runner.run(suite)
