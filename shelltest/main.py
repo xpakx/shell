@@ -1,10 +1,11 @@
-from unittest import TestCase, TestResult, TestLoader, TextTestRunner
+from unittest import TestCase, TestResult, TestLoader, TextTestRunner, TestSuite
 from enum import IntEnum
 import pexpect
 import re
 from rich.console import Console
 from rich.panel import Panel
 from pathlib import Path
+from typing import Self
 import os
 
 SHELL_PATH = "../target/debug/shell"
@@ -17,20 +18,25 @@ class ExpectResult(IntEnum):
     EOF = 2
 
 
+class PathBuilder:
+    def __init__(self):
+        self.elems = []
+        current_path = os.environ.get("PATH", "")
+        if current_path:
+            self.elems.append(current_path)
+
+    def path(self, path: str) -> Self:
+        self.elems.append(path)
+        return self
+
+    def build(self) -> str:
+        return f"{os.pathsep}".join(reversed(self.elems))
+
+
 class TestShellSuite(TestCase):
     def setUp(self):
         console.print(f"\n[cyan]Running:[/cyan]: {self._testMethodName}")
         console.print(f"=> [bold]{self._testMethodDoc}[/bold]")
-
-        # TODO: not a great solution
-        if self._testMethodName == "test_type_for_executables":
-            current_path = os.environ.get("PATH", "")
-            new_path = f"./tmp/test{os.pathsep}./tmp/test2{os.pathsep}./tmp/test3{os.pathsep}{current_path}"
-
-            custom_env = os.environ.copy()
-            custom_env["PATH"] = new_path
-            self.shell = pexpect.spawn(SHELL_PATH, encoding="utf-8", timeout=1, env=custom_env)
-            return
 
         self.shell = pexpect.spawn(
                 SHELL_PATH,
@@ -86,6 +92,8 @@ class TestShellSuite(TestCase):
             console.print(f"  [red]Received: {last_line}[/red]")
             self.fail("no exit")
 
+
+class BasicTests(TestShellSuite):
     def test_initial_prompt(self):
         """Verify the shell prints prompt upon starting"""
         result = self.expect_exact("$ ")
@@ -154,6 +162,28 @@ class TestShellSuite(TestCase):
         result = self.expect_exact("invalid_command_2 not found")
         self.verify_result(result, "Received expected message")
 
+
+class ExternalOneTests(TestShellSuite):
+    def setUp(self):
+        console.print(f"\n[cyan]Running:[/cyan]: {self._testMethodName}")
+        console.print(f"=> [bold]{self._testMethodDoc}[/bold]")
+
+        new_path = (
+                PathBuilder()
+                .path("./tmp/test")
+                .path("./tmp/test2")
+                .path("./tmp/test3")
+                .build()
+        )
+        custom_env = os.environ.copy()
+        custom_env["PATH"] = new_path
+        self.shell = pexpect.spawn(
+                SHELL_PATH,
+                encoding="utf-8",
+                timeout=1,
+                env=custom_env
+        )
+
     def test_type_for_executables(self):
         """Verify type detects executables"""
         self.prepare_file("./tmp/test/my_exe")
@@ -199,7 +229,9 @@ def main():
         )
     )
     runner = QuietTestRunner()
-    suite = TestLoader().loadTestsFromTestCase(TestShellSuite)
+    basic = TestLoader().loadTestsFromTestCase(BasicTests)
+    exec1 = TestLoader().loadTestsFromTestCase(ExternalOneTests)
+    suite = TestSuite([basic, exec1])
     runner.run(suite)
 
 
