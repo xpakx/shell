@@ -7,4 +7,4 @@ build:
 	cargo build
 
 test:
-	cd shelltest && uv run main.py
+	cd shelltest && uv run src/main.py
