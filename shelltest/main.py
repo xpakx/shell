@@ -5,6 +5,7 @@ import re
 from rich.console import Console
 from rich.panel import Panel
 from pathlib import Path
+import os
 
 SHELL_PATH = "../target/debug/shell"
 console = Console()
@@ -20,6 +21,17 @@ class TestShellSuite(TestCase):
     def setUp(self):
         console.print(f"\n[cyan]Running:[/cyan]: {self._testMethodName}")
         console.print(f"=> [bold]{self._testMethodDoc}[/bold]")
+
+        # TODO: not a great solution
+        if self._testMethodName == "test_type_for_executables":
+            current_path = os.environ.get("PATH", "")
+            new_path = f"./tmp/test{os.pathsep}./tmp/test2{os.pathsep}./tmp/test3{os.pathsep}{current_path}"
+
+            custom_env = os.environ.copy()
+            custom_env["PATH"] = new_path
+            self.shell = pexpect.spawn(SHELL_PATH, encoding="utf-8", timeout=1, env=custom_env)
+            return
+
         self.shell = pexpect.spawn(
                 SHELL_PATH,
                 encoding="utf-8",
@@ -140,6 +152,28 @@ class TestShellSuite(TestCase):
 
         self.shell.sendline("type invalid_command_2")
         result = self.expect_exact("invalid_command_2 not found")
+        self.verify_result(result, "Received expected message")
+
+    def test_type_for_executables(self):
+        """Verify type detects executables"""
+        self.prepare_file("./tmp/test/my_exe")
+        self.prepare_file("./tmp/test2/my_exe")
+        self.prepare_file("./tmp/test3/my_exe", True)
+
+        self.shell.sendline("type cat")  # TODO: detect real location first
+        result = self.expect_exact("cat is /usr/bin/cat")
+        self.verify_result(result, "Received expected message")
+
+        self.shell.sendline("type mkdir")
+        result = self.expect_exact("mkdir is /usr/bin/mkdir")
+        self.verify_result(result, "Received expected message")
+
+        self.shell.sendline("type my_exe")
+        result = self.expect_exact("my_exe is ./tmp/test3/my_exe")
+        self.verify_result(result, "Received expected message")
+
+        self.shell.sendline("type invalid_command")
+        result = self.expect_exact("invalid_command not found")
         self.verify_result(result, "Received expected message")
 
 
