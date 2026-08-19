@@ -4,6 +4,7 @@ import pexpect
 import re
 from rich.console import Console
 from rich.panel import Panel
+from pathlib import Path
 
 SHELL_PATH = "../target/debug/shell"
 console = Console()
@@ -28,6 +29,17 @@ class TestShellSuite(TestCase):
     def tearDown(self):
         if self.shell.isalive():
             self.shell.terminate(force=True)
+
+    def prepare_file(self, name: str, executable: bool = False):
+        file_path = Path(name)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.touch(exist_ok=True)
+        if not executable:
+            return
+        current_perm = file_path.stat().st_mode
+        new_perm = current_perm | 0o111
+        if new_perm != current_perm:
+            file_path.chmod(new_perm)
 
     def expect_exact(self, text: str) -> ExpectResult:
         index = self.shell.expect_exact([text, pexpect.TIMEOUT, pexpect.EOF])
