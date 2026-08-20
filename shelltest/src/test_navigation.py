@@ -35,17 +35,24 @@ class NavigationTests(TestShellSuite):
     def test_cd_relative(self):
         """Verify relative file paths"""
         self.prepare_dir("./tmp/nav2/test/dir/dir")
-        self.shell.sendline("cd ./tmp/nav2/test")
+        path = "./tmp/nav2/test"
+        self.shell.sendline(f"cd {path}")
         self.shell.sendline("pwd")
-        result = self.expect_exact("./tmp/nav2/test")
+        path = Path(path).resolve()
+        result = self.expect_exact(f"{path}")
         self.verify_result(result, "Received expected message")
 
-        self.shell.sendline("cd ./dir/dir")
+        path2 = "./dir/dir"
+        self.shell.sendline(f"cd {path2}")
         self.shell.sendline("pwd")
-        result = self.expect_exact("./tmp/nav2/test/dir/dir")
+        path2 = path / path2
+        result = self.expect_exact(f"{path2}")
         self.verify_result(result, "Received expected message")
 
-        self.shell.sendline("cd ../../..")
+        path3 = "../../.."
+        self.shell.sendline(f"cd {path3}")
         self.shell.sendline("pwd")
-        result = self.expect_exact("./tmp")
+        path3 = path2 / path3
+        path3 = path3.resolve()
+        result = self.expect_exact(f"{path3}")
         self.verify_result(result, "Received expected message")
