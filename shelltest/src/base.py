@@ -76,7 +76,9 @@ class TestShellSuite(TestCase):
         return ExpectResult(index)
 
     def get_lines(self) -> list[str]:
-        output = self.shell.before
+        output = str(self.shell.before)
+        if isinstance(self.shell.after, str):
+            output += self.shell.after
         ansi_regex = re.compile(
             r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]|\x1b\[\?[0-9]+[hl]"
         )
@@ -84,6 +86,12 @@ class TestShellSuite(TestCase):
         return clean_output.replace("\r", "").splitlines()
 
     def verify_result(self, result: ExpectResult, on_succes: str):
+        lines = self.get_lines()
+        for line in lines:
+            if not line:
+                continue
+            console.print(f"  [yellow]{line.strip()}[/yellow]")
+
         if result == ExpectResult.SUCCESS:
             console.print(f"  [green]{on_succes}[/green]")
         elif result == ExpectResult.TIMEOUT:

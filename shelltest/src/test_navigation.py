@@ -43,7 +43,6 @@ class NavigationTests(TestShellSuite):
         self.shell.sendline("cd ./dir/dir")
         self.shell.sendline("pwd")
         result = self.expect_exact("./tmp/nav2/test/dir/dir")
-        print(self.get_lines())
         self.verify_result(result, "Received expected message")
 
         self.shell.sendline("cd ../../..")
