@@ -58,6 +58,15 @@ class TestShellSuite(TestCase):
         if new_perm != current_perm:
             file_path.chmod(new_perm)
 
+    def prepare_ext(self, script: str, name: str, sig: str):
+        self.prepare_file(name, True)
+        script_path = Path("./scripts/") / script
+        file_path = Path(name)
+        script_content = script_path.read_text()
+        file_content = file_path.read_text()
+        if file_content != script_content:
+            file_path.write_text(script_content)
+
     def expect_exact(self, text: str) -> ExpectResult:
         index = self.shell.expect_exact([text, pexpect.TIMEOUT, pexpect.EOF])
         return ExpectResult(index)
