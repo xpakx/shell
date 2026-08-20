@@ -67,6 +67,10 @@ class TestShellSuite(TestCase):
         if file_content != script_content:
             file_path.write_text(script_content)
 
+    def prepare_dir(self, path: str):
+        file_path = Path(path)
+        file_path.mkdir(parents=True, exist_ok=True)
+
     def expect_exact(self, text: str) -> ExpectResult:
         index = self.shell.expect_exact([text, pexpect.TIMEOUT, pexpect.EOF])
         return ExpectResult(index)
