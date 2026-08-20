@@ -1,5 +1,5 @@
 use core::result::Result;
-use std::{collections::HashMap, path::{Path, PathBuf}, process::Command};
+use std::{collections::HashMap, path::{Component, PathBuf}, process::Command};
 
 struct EnvEntry {
     value: String,
@@ -43,6 +43,7 @@ impl Env {
         });
     }
 
+    #[allow(dead_code)]
     pub fn export(&mut self, key: String) {
         self.vars
             .entry(key)
@@ -73,12 +74,30 @@ impl Env {
         cmd.envs(exported_vars);
     }
 
-    pub fn set_current_dir(&mut self, new_path: &Path) -> Result<(), ()> {
+    pub fn set_current_dir(&mut self, new_path: &str) -> Result<(), ()> {
+        let path = match self.current_dir() {
+            Option::Some(p) => p,
+            Option::None => PathBuf::new()
+        };
+        let raw_path = path.join(new_path);
+        let mut path = PathBuf::new();
+        for component in raw_path.components() {
+            match component {
+                Component::CurDir => (),
+                Component::ParentDir => {path.pop();},
+                _ => path.push(component),
+            }
+        }
+        if !path.is_dir() {
+            return Result::Err(());
+        }
+
+
         if let Some(current_pwd) = self.get("PWD") {
             self.set_var(String::from("OLDPWD"), &current_pwd);
         }
 
-        let new_pwd_str = new_path.to_string_lossy().to_string();
+        let new_pwd_str = path.to_string_lossy().to_string();
         self.set_var(String::from("PWD"), &new_pwd_str);
 
         Ok(())

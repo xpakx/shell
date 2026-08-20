@@ -1,5 +1,5 @@
 use core::{cell::RefCell, option::Option::{self, Some}, writeln};
-use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, process::{Stdio, exit}};
+use std::{collections::HashMap, fs::File, io::{self, Write, stdout}, path::PathBuf, process::{Stdio, exit}};
 use std::path::Path;
 use std::fs::OpenOptions;
 use std::process::{Command, ChildStdout};
@@ -145,9 +145,9 @@ fn run_builtin(
             },
             Builtin::Cd => {
                 if !command.tokens.is_empty() {
-                    let path = Path::new(&command.tokens[0]);
-                    if !path.is_dir() || !env.set_current_dir(path).is_ok() {
-                        writeln!(buffers.err(), "cd: {}: No such file or directory", path.display()).unwrap();
+                    let path = &command.tokens[0];
+                    if !env.set_current_dir(path).is_ok() {
+                        writeln!(buffers.err(), "cd: {}: No such file or directory", path).unwrap();
                     }
                 }
             },
