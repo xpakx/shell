@@ -66,10 +66,9 @@ impl Env {
             .map(|(key, entry)| (key, &entry.value))
             .collect();
 
-        // TODO: we need to use our PWD correctly first
-        // if let Some(pwd_entry) = self.vars.get("PWD") {
-        //    cmd.current_dir(&pwd_entry.value);
-        // }
+        if let Some(pwd_entry) = self.vars.get("PWD") {
+           cmd.current_dir(&pwd_entry.value);
+        }
 
         cmd.envs(exported_vars);
     }
