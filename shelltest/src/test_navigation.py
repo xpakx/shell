@@ -29,3 +29,22 @@ class NavigationTests(TestShellSuite):
         self.shell.sendline("cd non-existing-dir")
         result = self.expect_exact("cd: non-existing-dir: No such file or directory")
         self.verify_result(result, "Received expected message")
+
+    def test_cd_relative(self):
+        """Verify relative file paths"""
+        self.prepare_dir("./tmp/nav2/test/dir/dir")
+        self.shell.sendline("cd ./tmp/nav2/test")
+        self.shell.sendline("pwd")
+        result = self.expect_exact("./tmp/nav2/test")
+        self.verify_result(result, "Received expected message")
+
+        self.shell.sendline("cd ./dir/dir")
+        self.shell.sendline("pwd")
+        result = self.expect_exact("./tmp/nav2/test/dir/dir")
+        print(self.get_lines())
+        self.verify_result(result, "Received expected message")
+
+        self.shell.sendline("cd ../../..")
+        self.shell.sendline("pwd")
+        result = self.expect_exact("./tmp")
+        self.verify_result(result, "Received expected message")
