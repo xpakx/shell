@@ -58,7 +58,7 @@ class TestShellSuite(TestCase):
         if new_perm != current_perm:
             file_path.chmod(new_perm)
 
-    def prepare_ext(self, script: str, name: str, sig: str):
+    def prepare_ext(self, script: str, name: str):
         self.prepare_file(name, True)
         script_path = Path("./scripts/") / script
         file_path = Path(name)
